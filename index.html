@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClassPilot</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">ClassPilot</p>
+          <h1 data-i18n="appTitle">ClassPilot</h1>
+        </div>
+        <div class="header-actions">
+          <label class="language-control" for="density-select">
+            <span data-i18n="density">显示密度</span>
+            <select id="density-select">
+              <option value="compact" data-i18n="densityCompact">紧凑</option>
+              <option value="standard" data-i18n="densityStandard">标准</option>
+              <option value="spacious" data-i18n="densitySpacious">宽松</option>
+            </select>
+          </label>
+          <label class="language-control" for="theme-select">
+            <span data-i18n="theme">主题</span>
+            <select id="theme-select">
+              <option value="light" data-i18n="themeLight">浅色</option>
+              <option value="dark" data-i18n="themeDark">深色</option>
+              <option value="system" data-i18n="themeSystem">跟随系统</option>
+            </select>
+          </label>
+          <label class="language-control" for="language-select">
+            <span data-i18n="language">语言</span>
+            <select id="language-select">
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <p class="range">08:00 - 22:00</p>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="form-panel" aria-label="课程管理">
+          <section class="semester-section">
+            <div class="section-heading">
+              <h2 data-i18n="semesterSettings">学期设置</h2>
+              <span class="status-badge" id="semester-status"></span>
+            </div>
+
+            <div class="field">
+              <label for="semester-select" data-i18n="activeSemester">当前学期</label>
+              <select id="semester-select"></select>
+            </div>
+
+            <form id="semester-form" class="compact-form" novalidate>
+              <div class="field">
+                <label for="semester-name" data-i18n="semesterName">学期名称</label>
+                <input id="semester-name" name="name" type="text" autocomplete="off" />
+              </div>
+
+              <div class="date-fields">
+                <div class="field">
+                  <label for="semester-start" data-i18n="semesterStart">开始日期</label>
+                  <input id="semester-start" name="startDate" type="date" />
+                </div>
+                <div class="field">
+                  <label for="semester-end" data-i18n="semesterEnd">结束日期</label>
+                  <input id="semester-end" name="endDate" type="date" />
+                </div>
+              </div>
+
+              <p id="semester-error" class="error" role="alert" aria-live="polite"></p>
+              <div class="split-actions">
+                <button class="secondary-button" id="new-semester-button" type="button" data-i18n="newSemester">新建学期</button>
+                <button class="submit-button" type="submit" data-i18n="saveSemester">保存学期</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="data-section">
+            <div class="section-heading">
+              <h2 data-i18n="dataManagement">数据管理</h2>
+            </div>
+            <div class="split-actions">
+              <button class="secondary-button" id="export-button" type="button" data-i18n="exportData">导出数据</button>
+              <button class="secondary-button" id="import-button" type="button" data-i18n="importData">导入数据</button>
+            </div>
+            <input id="import-file" type="file" accept="application/json,.json" hidden />
+            <p id="data-message" class="field-help" aria-live="polite"></p>
+          </section>
+
+          <section class="settings-section">
+            <div class="section-heading">
+              <h2 data-i18n="preferences">偏好设置</h2>
+            </div>
+
+            <div class="field">
+              <label for="reminder-select" data-i18n="reminderLead">上课提醒</label>
+              <select id="reminder-select">
+                <option value="0" data-i18n="reminderOff">关闭</option>
+                <option value="5" data-i18n="reminder5">提前 5 分钟</option>
+                <option value="10" data-i18n="reminder10">提前 10 分钟</option>
+                <option value="15" data-i18n="reminder15">提前 15 分钟</option>
+                <option value="30" data-i18n="reminder30">提前 30 分钟</option>
+                <option value="60" data-i18n="reminder60">提前 60 分钟</option>
+              </select>
+              <p id="notification-status" class="field-help" aria-live="polite"></p>
+            </div>
+
+            <div class="field">
+              <span class="field-label" data-i18n="blockDisplay">课程块显示</span>
+              <div class="display-options">
+                <label class="toggle-option"><input id="show-location" type="checkbox" /><span data-i18n="showLocation">地点</span></label>
+                <label class="toggle-option"><input id="show-type" type="checkbox" /><span data-i18n="showType">类型</span></label>
+                <label class="toggle-option"><input id="show-recurrence" type="checkbox" /><span data-i18n="showRecurrence">重复规则</span></label>
+                <label class="toggle-option"><input id="show-actions" type="checkbox" /><span data-i18n="showActions">按钮</span></label>
+              </div>
+            </div>
+          </section>
+
+          <section class="course-section">
+            <div class="section-heading">
+              <h2 data-i18n="addCourseTitle">添加课程</h2>
+            </div>
+
+            <form id="course-form" novalidate>
+              <div class="field">
+                <label for="course-name" data-i18n="courseName">课程名称/课程代码</label>
+                <input id="course-name" name="name" type="text" data-i18n-placeholder="courseNamePlaceholder" placeholder="例如 CS101" autocomplete="off" />
+              </div>
+
+              <div class="field">
+                <label for="course-type" data-i18n="courseType">课程类型</label>
+                <select id="course-type" name="type">
+                  <option value="lecture" data-i18n="typeLecture">Lecture</option>
+                  <option value="tutorial" data-i18n="typeTutorial">Tutorial</option>
+                  <option value="lab" data-i18n="typeLab">Lab</option>
+                  <option value="seminar" data-i18n="typeSeminar">Seminar</option>
+                  <option value="exam" data-i18n="typeExam">Exam</option>
+                  <option value="other" data-i18n="typeOther">Other</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="course-recurrence" data-i18n="recurrence">重复方式</label>
+                <select id="course-recurrence" name="recurrence">
+                  <option value="weekly" data-i18n="recurrenceWeekly">每周</option>
+                  <option value="biweekly" data-i18n="recurrenceBiweekly">每两周</option>
+                  <option value="monthly" data-i18n="recurrenceMonthly">每月</option>
+                  <option value="dates" data-i18n="recurrenceDates">指定日期</option>
+                </select>
+              </div>
+
+              <div class="field weekday-field">
+                <span class="field-label" id="course-days-label" data-i18n="weekdays">上课日</span>
+                <div class="day-picker" role="group" aria-labelledby="course-days-label">
+                  <label class="day-option"><input name="days" type="checkbox" value="1" /><span data-i18n="dayShort1">周一</span></label>
+                  <label class="day-option"><input name="days" type="checkbox" value="2" /><span data-i18n="dayShort2">周二</span></label>
+                  <label class="day-option"><input name="days" type="checkbox" value="3" /><span data-i18n="dayShort3">周三</span></label>
+                  <label class="day-option"><input name="days" type="checkbox" value="4" /><span data-i18n="dayShort4">周四</span></label>
+                  <label class="day-option"><input name="days" type="checkbox" value="5" /><span data-i18n="dayShort5">周五</span></label>
+                  <label class="day-option"><input name="days" type="checkbox" value="6" /><span data-i18n="dayShort6">周六</span></label>
+                  <label class="day-option"><input name="days" type="checkbox" value="7" /><span data-i18n="dayShort7">周日</span></label>
+                </div>
+              </div>
+
+              <div class="field anchor-field" hidden>
+                <label for="anchor-date" data-i18n="anchorDate">首次上课日期</label>
+                <input id="anchor-date" name="anchorDate" type="date" />
+              </div>
+
+              <div class="field dates-field" hidden>
+                <label for="exact-dates" data-i18n="exactDates">确切日期</label>
+                <textarea id="exact-dates" name="dates" rows="4" data-i18n-placeholder="exactDatesPlaceholder" placeholder="每行一个日期，例如 2026-09-14"></textarea>
+                <p class="field-help" data-i18n="exactDatesHelp">每行输入一个日期，适合不固定的 tutorial/lab。</p>
+              </div>
+
+              <div class="time-fields">
+                <div class="field">
+                  <label for="start-time" data-i18n="startTime">开始时间</label>
+                  <input id="start-time" name="start" type="time" min="08:00" max="22:00" step="300" value="08:00" />
+                </div>
+                <div class="field">
+                  <label for="end-time" data-i18n="endTime">结束时间</label>
+                  <input id="end-time" name="end" type="time" min="08:00" max="22:00" step="300" value="09:00" />
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="location" data-i18n="location">地点</label>
+                <input id="location" name="location" type="text" data-i18n-placeholder="locationPlaceholder" placeholder="例如 A101" autocomplete="off" />
+              </div>
+
+              <div class="field">
+                <span class="field-label" data-i18n="color">颜色</span>
+                <div class="palette-preview" id="course-palette-preview" aria-hidden="true"></div>
+                <p class="field-help" data-i18n="autoColorHelp">添加课程时会自动从 10 种颜色中分配。</p>
+              </div>
+
+              <p id="form-error" class="error" role="alert" aria-live="polite"></p>
+              <button class="submit-button" type="submit" data-i18n="addCourse">添加课程</button>
+            </form>
+          </section>
+
+          <section class="conflict-panel" id="conflict-panel" aria-live="polite" hidden>
+            <div class="conflict-panel-header">
+              <h2 data-i18n="conflicts">时间冲突</h2>
+              <span id="conflict-count"></span>
+            </div>
+            <ul id="conflict-list"></ul>
+          </section>
+        </aside>
+
+        <section class="schedule-panel" aria-label="每周课程表">
+          <div class="filter-toolbar">
+            <label class="filter-field" for="search-input">
+              <span data-i18n="search">搜索</span>
+              <input id="search-input" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="课程、地点或类型" />
+            </label>
+            <label class="filter-field" for="type-filter">
+              <span data-i18n="filterType">课程类型</span>
+              <select id="type-filter">
+                <option value="all" data-i18n="allTypes">全部类型</option>
+                <option value="lecture" data-i18n="typeLecture">Lecture</option>
+                <option value="tutorial" data-i18n="typeTutorial">Tutorial</option>
+                <option value="lab" data-i18n="typeLab">Lab</option>
+                <option value="seminar" data-i18n="typeSeminar">Seminar</option>
+                <option value="exam" data-i18n="typeExam">Exam</option>
+                <option value="other" data-i18n="typeOther">Other</option>
+              </select>
+            </label>
+          </div>
+          <section class="stats-panel" id="stats-panel" aria-label="课程统计"></section>
+          <div class="week-toolbar">
+            <button class="secondary-button" id="prev-week-button" type="button" data-i18n="previousWeek">上一周</button>
+            <button class="secondary-button" id="today-week-button" type="button" data-i18n="thisWeek">本周</button>
+            <button class="secondary-button" id="next-week-button" type="button" data-i18n="nextWeek">下一周</button>
+            <label class="jump-date" for="week-date">
+              <span data-i18n="jumpDate">跳转日期</span>
+              <input id="week-date" type="date" />
+            </label>
+            <strong id="week-range"></strong>
+          </div>
+
+          <div class="schedule-scroll">
+            <div class="week-header" id="week-header"></div>
+            <div class="schedule-grid">
+              <div class="time-column" id="time-column" aria-hidden="true"></div>
+              <div class="days-grid" id="days-grid"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <div class="modal" id="edit-modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+        <form id="edit-form" novalidate>
+          <div class="modal-header">
+            <div>
+              <p class="eyebrow">Edit Course</p>
+              <h2 id="edit-title" data-i18n="editCourse">编辑课程</h2>
+            </div>
+            <button class="icon-button" type="button" data-close-modal aria-label="关闭编辑窗口">×</button>
+          </div>
+
+          <div class="field">
+            <label for="edit-name" data-i18n="courseName">课程名称/课程代码</label>
+            <input id="edit-name" name="name" type="text" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="edit-type" data-i18n="courseType">课程类型</label>
+            <select id="edit-type" name="type">
+              <option value="lecture" data-i18n="typeLecture">Lecture</option>
+              <option value="tutorial" data-i18n="typeTutorial">Tutorial</option>
+              <option value="lab" data-i18n="typeLab">Lab</option>
+              <option value="seminar" data-i18n="typeSeminar">Seminar</option>
+              <option value="exam" data-i18n="typeExam">Exam</option>
+              <option value="other" data-i18n="typeOther">Other</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="edit-recurrence" data-i18n="recurrence">重复方式</label>
+            <select id="edit-recurrence" name="recurrence">
+              <option value="weekly" data-i18n="recurrenceWeekly">每周</option>
+              <option value="biweekly" data-i18n="recurrenceBiweekly">每两周</option>
+              <option value="monthly" data-i18n="recurrenceMonthly">每月</option>
+              <option value="dates" data-i18n="recurrenceDates">指定日期</option>
+            </select>
+          </div>
+
+          <div class="field weekday-field">
+            <span class="field-label" id="edit-days-label" data-i18n="weekdays">上课日</span>
+            <div class="day-picker" role="group" aria-labelledby="edit-days-label">
+              <label class="day-option"><input name="days" type="checkbox" value="1" /><span data-i18n="dayShort1">周一</span></label>
+              <label class="day-option"><input name="days" type="checkbox" value="2" /><span data-i18n="dayShort2">周二</span></label>
+              <label class="day-option"><input name="days" type="checkbox" value="3" /><span data-i18n="dayShort3">周三</span></label>
+              <label class="day-option"><input name="days" type="checkbox" value="4" /><span data-i18n="dayShort4">周四</span></label>
+              <label class="day-option"><input name="days" type="checkbox" value="5" /><span data-i18n="dayShort5">周五</span></label>
+              <label class="day-option"><input name="days" type="checkbox" value="6" /><span data-i18n="dayShort6">周六</span></label>
+              <label class="day-option"><input name="days" type="checkbox" value="7" /><span data-i18n="dayShort7">周日</span></label>
+            </div>
+          </div>
+
+          <div class="field anchor-field" hidden>
+            <label for="edit-anchor-date" data-i18n="anchorDate">首次上课日期</label>
+            <input id="edit-anchor-date" name="anchorDate" type="date" />
+          </div>
+
+          <div class="field dates-field" hidden>
+            <label for="edit-exact-dates" data-i18n="exactDates">确切日期</label>
+            <textarea id="edit-exact-dates" name="dates" rows="4"></textarea>
+            <p class="field-help" data-i18n="exactDatesHelp">每行输入一个日期，适合不固定的 tutorial/lab。</p>
+          </div>
+
+          <div class="time-fields">
+            <div class="field">
+              <label for="edit-start" data-i18n="startTime">开始时间</label>
+              <input id="edit-start" name="start" type="time" min="08:00" max="22:00" step="300" />
+            </div>
+            <div class="field">
+              <label for="edit-end" data-i18n="endTime">结束时间</label>
+              <input id="edit-end" name="end" type="time" min="08:00" max="22:00" step="300" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="edit-location" data-i18n="location">地点</label>
+            <input id="edit-location" name="location" type="text" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <span class="field-label" data-i18n="color">颜色</span>
+            <div class="color-picker-grid" id="edit-color-options"></div>
+            <input id="edit-color" name="color" type="hidden" />
+          </div>
+
+          <p id="edit-error" class="error" role="alert" aria-live="polite"></p>
+          <div class="modal-actions">
+            <button class="secondary-button" type="button" data-close-modal data-i18n="cancel">取消</button>
+            <button class="submit-button" type="submit" data-i18n="saveChanges">保存修改</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="toast" id="undo-toast" hidden>
+      <span id="undo-message"></span>
+      <button class="secondary-button" id="undo-button" type="button" data-i18n="undo">撤销</button>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
