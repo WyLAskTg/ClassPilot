@@ -1,105 +1,89 @@
 # ClassPilot
 
-ClassPilot is a desktop course schedule planner built with Electron. It helps students manage weekly classes, irregular labs/tutorials, semester archives, reminders, and local schedule data in one clean timetable.
+ClassPilot is a desktop course timetable app built with Electron.
 
-ClassPilot 是一款基于 Electron 的桌面课程表应用，用于管理每周课程、不固定日期的 lab/tutorial、学期归档、上课提醒和本地课表数据。
+ClassPilot 是一款基于 Electron 的桌面课程表应用。
 
-## 中文说明
+## 中文
 
-### 功能
+ClassPilot 用来管理课程、tutorial/lab、考试和不同学期的课表数据。它支持固定周课表，也支持每两周、每月或指定日期的非固定课程。
 
-- 周课程表视图，支持星期一到星期日，时间范围为 08:00 到 22:00。
-- 添加课程名称、类型、星期、确切日期、开始/结束时间、地点和颜色。
-- 支持每周、每两周、每月、指定日期等重复方式。
-- 支持一门课一次选择多个上课日，减少重复输入。
-- 支持不同学期的数据保存、学期时间设置和过期学期自动归档。
-- 支持中文/英文界面切换。
-- 支持显示密度、深色模式、课程块显示内容设置。
-- 支持搜索筛选、课程类型筛选、当前时间线、时间冲突提示。
-- 支持桌面通知提醒、撤销删除、右键菜单编辑/复制/删除。
-- 支持导入/导出 JSON 备份。
-- 使用本地 JSON 文件保存数据，刷新或重启后课程仍然存在。
+### 主要功能
 
-### 本地运行
+- 周视图课程表：星期一到星期日，08:00 到 22:00。
+- 添加课程名称、类型、时间、地点、颜色、重复规则和确切日期。
+- 多学期管理，学期结束后自动归档。
+- 中文/英文界面、深色模式、显示密度设置。
+- 搜索筛选、课程统计、冲突提示、当前时间线。
+- 桌面提醒、撤销删除、右键编辑/复制/删除。
+- 本地 JSON 文件存储，支持导入/导出备份。
+
+### 使用
 
 ```bash
 npm install
 npm run start
 ```
 
-### 构建 Windows 安装包
+### 打包
 
 ```bash
 npm run build
 ```
 
-构建完成后，安装包会生成在 `dist/ClassPilot-Setup-1.0.0.exe`。安装后会创建桌面快捷方式和开始菜单快捷方式。
+Windows 安装包会生成在：
 
-### 数据存储位置
+```text
+dist/ClassPilot-Setup-1.0.0.exe
+```
 
-Windows 下，ClassPilot 的本地数据文件位于：
+本地数据文件默认位于：
 
 ```text
 %APPDATA%\ClassPilot\classpilot-data.json
-```
-
-### 项目结构
-
-```text
-.
-├── app.js                 # Renderer logic and timetable behavior
-├── index.html             # Application UI
-├── main.js                # Electron main process
-├── preload.js             # Secure bridge for local storage and context menu
-├── styles.css             # Application styles
-├── build/                 # App icons
-├── scripts/               # Icon generation and Windows metadata scripts
-├── package.json           # Scripts and Electron Builder config
-└── package-lock.json      # Dependency lockfile
 ```
 
 ## English
 
+ClassPilot helps manage courses, tutorials/labs, exams, and semester-based timetable data. It supports both regular weekly classes and irregular schedules such as biweekly, monthly, or specific-date sessions.
+
 ### Features
 
-- Weekly timetable view from Monday to Sunday, 08:00 to 22:00.
-- Add course name/code, type, weekdays, exact dates, start/end time, location, and color.
-- Supports weekly, biweekly, monthly, and specific-date schedules.
-- Select multiple weekdays for one course in a single form submission.
-- Semester-based storage with date ranges and automatic archiving after a semester ends.
-- Chinese and English UI.
-- Display density settings, dark mode, and configurable course block content.
-- Search, type filters, current time line, and conflict detection.
-- Desktop reminders, undo delete, and right-click menu actions for edit/duplicate/delete.
-- JSON import/export backup.
-- Local JSON file storage so course data persists after refresh or restart.
+- Weekly timetable from Monday to Sunday, 08:00 to 22:00.
+- Add course name, type, time, location, color, recurrence, and exact dates.
+- Multi-semester data with automatic archive after a semester ends.
+- Chinese/English UI, dark mode, and display density settings.
+- Search, filters, course stats, conflict warnings, and current time line.
+- Desktop reminders, undo delete, and right-click edit/duplicate/delete.
+- Local JSON storage with import/export backup.
 
-### Run Locally
+### Run
 
 ```bash
 npm install
 npm run start
 ```
 
-### Build Windows Installer
+### Build
 
 ```bash
 npm run build
 ```
 
-The installer will be generated at `dist/ClassPilot-Setup-1.0.0.exe`. The installed app creates desktop and Start Menu shortcuts.
+The Windows installer is generated at:
 
-### Local Data Path
+```text
+dist/ClassPilot-Setup-1.0.0.exe
+```
 
-On Windows, ClassPilot stores local schedule data at:
+Local data is stored at:
 
 ```text
 %APPDATA%\ClassPilot\classpilot-data.json
 ```
 
-### Tech Stack
+## Tech Stack
 
 - Electron
 - HTML, CSS, JavaScript
 - Electron Builder
-
