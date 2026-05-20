@@ -194,11 +194,22 @@
               </div>
 
               <div class="field">
+                <label for="course-link" data-i18n="courseLink">课程链接</label>
+                <input id="course-link" name="link" type="url" data-i18n-placeholder="courseLinkPlaceholder" placeholder="https://..." autocomplete="off" />
+              </div>
+
+              <div class="field">
+                <label for="course-notes" data-i18n="courseNotes">备注</label>
+                <textarea id="course-notes" name="notes" rows="3" data-i18n-placeholder="courseNotesPlaceholder" placeholder="Zoom 链接、老师邮箱、作业要求等"></textarea>
+              </div>
+
+              <div class="field">
                 <span class="field-label" data-i18n="color">颜色</span>
                 <div class="palette-preview" id="course-palette-preview" aria-hidden="true"></div>
                 <p class="field-help" data-i18n="autoColorHelp">添加课程时会自动从 10 种颜色中分配。</p>
               </div>
 
+              <div class="conflict-preview" id="form-conflict-preview" hidden></div>
               <p id="form-error" class="error" role="alert" aria-live="polite"></p>
               <button class="submit-button" type="submit" data-i18n="addCourse">添加课程</button>
             </form>
@@ -254,6 +265,25 @@
         </section>
       </div>
     </main>
+
+    <div class="modal" id="detail-modal" hidden>
+      <div class="modal-backdrop" data-close-detail></div>
+      <section class="modal-card detail-card" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" data-i18n="courseDetails">课程详情</p>
+            <h2 id="detail-title"></h2>
+          </div>
+          <button class="icon-button" type="button" data-close-detail aria-label="关闭详情窗口">×</button>
+        </div>
+        <div class="detail-content" id="detail-content"></div>
+        <div class="modal-actions detail-actions">
+          <button class="secondary-button" id="detail-duplicate-button" type="button" data-i18n="duplicate">复制</button>
+          <button class="secondary-button" id="detail-delete-button" type="button" data-i18n="delete">删除</button>
+          <button class="submit-button" id="detail-edit-button" type="button" data-i18n="edit">编辑</button>
+        </div>
+      </section>
+    </div>
 
     <div class="modal" id="edit-modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>
@@ -335,11 +365,22 @@
           </div>
 
           <div class="field">
+            <label for="edit-link" data-i18n="courseLink">课程链接</label>
+            <input id="edit-link" name="link" type="url" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="edit-notes" data-i18n="courseNotes">备注</label>
+            <textarea id="edit-notes" name="notes" rows="3"></textarea>
+          </div>
+
+          <div class="field">
             <span class="field-label" data-i18n="color">颜色</span>
             <div class="color-picker-grid" id="edit-color-options"></div>
             <input id="edit-color" name="color" type="hidden" />
           </div>
 
+          <div class="conflict-preview" id="edit-conflict-preview" hidden></div>
           <p id="edit-error" class="error" role="alert" aria-live="polite"></p>
           <div class="modal-actions">
             <button class="secondary-button" type="button" data-close-modal data-i18n="cancel">取消</button>

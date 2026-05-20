@@ -95,6 +95,10 @@ const I18N = {
     endTime: "结束时间",
     location: "地点",
     locationPlaceholder: "例如 A101",
+    courseLink: "课程链接",
+    courseLinkPlaceholder: "https://...",
+    courseNotes: "备注",
+    courseNotesPlaceholder: "Zoom 链接、老师邮箱、作业要求等",
     color: "颜色",
     autoColorHelp: "添加课程时会自动从 10 种颜色中分配。",
     addCourse: "添加课程",
@@ -105,6 +109,13 @@ const I18N = {
     jumpDate: "跳转日期",
     time: "时间",
     editCourse: "编辑课程",
+    courseDetails: "课程详情",
+    closeDialog: "关闭窗口",
+    openLink: "打开链接",
+    noLink: "暂无链接",
+    noNotes: "暂无备注",
+    liveConflictWarning: "可能与 {count} 节课冲突",
+    liveConflictMore: "另有 {count} 个冲突",
     cancel: "取消",
     saveChanges: "保存修改",
     edit: "编辑",
@@ -151,6 +162,7 @@ const I18N = {
     errorTimeRequired: "请填写开始时间和结束时间。",
     errorTimeRange: "时间需要在 08:00 到 22:00 之间。",
     errorEndAfterStart: "结束时间必须晚于开始时间。",
+    errorInvalidLink: "课程链接格式无效。",
     errorSemesterName: "学期名称不能为空。",
     errorSemesterDates: "学期结束日期必须晚于或等于开始日期。",
   },
@@ -229,6 +241,10 @@ const I18N = {
     endTime: "End Time",
     location: "Location",
     locationPlaceholder: "e.g. A101",
+    courseLink: "Course Link",
+    courseLinkPlaceholder: "https://...",
+    courseNotes: "Notes",
+    courseNotesPlaceholder: "Zoom link, instructor email, assignment notes",
     color: "Color",
     autoColorHelp: "New courses automatically use one of 10 distinct colors.",
     addCourse: "Add Course",
@@ -239,6 +255,13 @@ const I18N = {
     jumpDate: "Jump To",
     time: "Time",
     editCourse: "Edit Course",
+    courseDetails: "Course Details",
+    closeDialog: "Close dialog",
+    openLink: "Open Link",
+    noLink: "No link",
+    noNotes: "No notes",
+    liveConflictWarning: "May conflict with {count} class(es)",
+    liveConflictMore: "{count} more conflicts",
     cancel: "Cancel",
     saveChanges: "Save Changes",
     edit: "Edit",
@@ -285,6 +308,7 @@ const I18N = {
     errorTimeRequired: "Enter both start and end times.",
     errorTimeRange: "Time must be between 08:00 and 22:00.",
     errorEndAfterStart: "End time must be later than start time.",
+    errorInvalidLink: "Course link is not a valid URL.",
     errorSemesterName: "Semester name is required.",
     errorSemesterDates: "Semester end date must be on or after the start date.",
   },
@@ -299,6 +323,12 @@ const semesterErrorEl = document.querySelector("#semester-error");
 const weekHeader = document.querySelector("#week-header");
 const timeColumn = document.querySelector("#time-column");
 const daysGrid = document.querySelector("#days-grid");
+const detailModal = document.querySelector("#detail-modal");
+const detailTitle = document.querySelector("#detail-title");
+const detailContent = document.querySelector("#detail-content");
+const detailEditButton = document.querySelector("#detail-edit-button");
+const detailDuplicateButton = document.querySelector("#detail-duplicate-button");
+const detailDeleteButton = document.querySelector("#detail-delete-button");
 const editModal = document.querySelector("#edit-modal");
 const conflictPanel = document.querySelector("#conflict-panel");
 const conflictCount = document.querySelector("#conflict-count");
@@ -327,6 +357,8 @@ const showActionsCheckbox = document.querySelector("#show-actions");
 const undoToast = document.querySelector("#undo-toast");
 const undoMessage = document.querySelector("#undo-message");
 const undoButton = document.querySelector("#undo-button");
+const formConflictPreview = document.querySelector("#form-conflict-preview");
+const editConflictPreview = document.querySelector("#edit-conflict-preview");
 const weekRange = document.querySelector("#week-range");
 const weekDateInput = document.querySelector("#week-date");
 const prevWeekButton = document.querySelector("#prev-week-button");
@@ -335,6 +367,7 @@ const nextWeekButton = document.querySelector("#next-week-button");
 
 let state = loadState();
 let editingCourseId = null;
+let detailCourseId = null;
 let lastFocusedElement = null;
 let lastDeletedCourse = null;
 let undoTimer = null;
@@ -495,6 +528,8 @@ function migrateLegacyCourses(legacyCourses) {
     start: String(course.start || "08:00"),
     end: String(course.end || "09:00"),
     location: String(course.location || ""),
+    link: normalizeOptionalUrl(String(course.link || "")),
+    notes: String(course.notes || ""),
     color: normalizePaletteColor(String(course.color || "")),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -520,6 +555,8 @@ function normalizeCourse(course) {
     start: String(course.start || "08:00"),
     end: String(course.end || "09:00"),
     location: String(course.location || ""),
+    link: normalizeOptionalUrl(String(course.link || "")),
+    notes: String(course.notes || ""),
     color: normalizePaletteColor(String(course.color || "")),
     createdAt: course.createdAt || new Date().toISOString(),
     updatedAt: course.updatedAt || new Date().toISOString(),
@@ -680,8 +717,8 @@ function applyTranslations() {
     element.placeholder = t(element.dataset.i18nPlaceholder);
   });
 
-  document.querySelectorAll("[data-close-modal].icon-button").forEach((button) => {
-    button.setAttribute("aria-label", state.language === "en" ? "Close edit dialog" : "关闭编辑窗口");
+  document.querySelectorAll("[data-close-modal].icon-button, [data-close-detail].icon-button").forEach((button) => {
+    button.setAttribute("aria-label", t("closeDialog"));
   });
 }
 
@@ -703,6 +740,10 @@ function renderAll() {
   renderWeekControls();
   updateRecurrenceFields(form);
   updateRecurrenceFields(editForm);
+  renderDraftConflictPreview(form, formConflictPreview);
+  if (!editModal.hidden) {
+    renderDraftConflictPreview(editForm, editConflictPreview, editingCourseId);
+  }
   renderHeader();
   renderTimeColumn();
   renderDayColumns();
@@ -1025,7 +1066,7 @@ function courseMatchesFilters(course) {
     return true;
   }
 
-  return [course.name, course.location, course.type, typeLabel, getCourseSummary(course)]
+  return [course.name, course.location, course.link, course.notes, course.type, typeLabel, getCourseSummary(course)]
     .join(" ")
     .toLowerCase()
     .includes(query);
@@ -1231,6 +1272,8 @@ function getCourseDraft(formElement) {
     start: String(formData.get("start") || ""),
     end: String(formData.get("end") || ""),
     location: String(formData.get("location") || "").trim(),
+    link: String(formData.get("link") || "").trim(),
+    notes: String(formData.get("notes") || "").trim(),
     color: String(formData.get("color") || ""),
   };
 }
@@ -1243,6 +1286,7 @@ function validateCourse(course) {
   if (Number.isNaN(start) || Number.isNaN(end)) return t("errorTimeRequired");
   if (start < START_MINUTES || end > END_MINUTES) return t("errorTimeRange");
   if (end <= start) return t("errorEndAfterStart");
+  if (course.link && !isValidOptionalUrl(course.link)) return t("errorInvalidLink");
 
   if (["weekly", "biweekly"].includes(course.recurrence) && course.days.length === 0) {
     return t("errorNoDays");
@@ -1260,6 +1304,23 @@ function validateCourse(course) {
   return "";
 }
 
+function normalizeOptionalUrl(value) {
+  const trimmed = String(value || "").trim();
+  return isValidOptionalUrl(trimmed) ? trimmed : "";
+}
+
+function isValidOptionalUrl(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return true;
+
+  try {
+    const url = new URL(trimmed);
+    return ["http:", "https:", "mailto:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
 function validateSemesterDraft(draft) {
   if (!draft.name.trim()) return t("errorSemesterName");
   if (!isValidDateString(draft.startDate) || !isValidDateString(draft.endDate) || draft.endDate < draft.startDate) {
@@ -1267,6 +1328,77 @@ function validateSemesterDraft(draft) {
   }
 
   return "";
+}
+
+function getDraftConflicts(draft, semester, excludeCourseId = "") {
+  const draftStart = timeToMinutes(draft.start);
+  const draftEnd = timeToMinutes(draft.end);
+
+  if (!semester || Number.isNaN(draftStart) || Number.isNaN(draftEnd) || draftEnd <= draftStart) {
+    return [];
+  }
+
+  const draftDates = getCourseDatesInSemester(draft, semester);
+  if (draftDates.length === 0) return [];
+
+  const conflicts = [];
+  semester.courses.forEach((course) => {
+    if (course.id === excludeCourseId) return;
+
+    const start = timeToMinutes(course.start);
+    const end = timeToMinutes(course.end);
+    if (Number.isNaN(start) || Number.isNaN(end) || draftEnd <= start || draftStart >= end) return;
+
+    const courseDates = new Set(getCourseDatesInSemester(course, semester));
+    draftDates.forEach((date) => {
+      if (!courseDates.has(date)) return;
+
+      conflicts.push({
+        date,
+        courseName: course.name,
+        timeRange: `${minutesToTime(Math.max(draftStart, start))} - ${minutesToTime(Math.min(draftEnd, end))}`,
+      });
+    });
+  });
+
+  return conflicts.sort((a, b) => a.date.localeCompare(b.date) || a.timeRange.localeCompare(b.timeRange));
+}
+
+function renderDraftConflictPreview(formElement, previewElement, excludeCourseId = "") {
+  if (!previewElement) return;
+
+  const activeSemester = getActiveSemester();
+  const draft = getCourseDraft(formElement);
+  const conflicts = getDraftConflicts(draft, activeSemester, excludeCourseId);
+
+  if (conflicts.length === 0) {
+    previewElement.hidden = true;
+    previewElement.innerHTML = "";
+    return;
+  }
+
+  const visibleConflicts = conflicts.slice(0, 3);
+  previewElement.hidden = false;
+  previewElement.innerHTML = `
+    <strong>${t("liveConflictWarning", { count: conflicts.length })}</strong>
+    <ul>
+      ${visibleConflicts
+        .map(
+          (conflict) => `
+            <li>
+              ${formatDisplayDate(conflict.date)} ${conflict.timeRange}
+              <span>${escapeHtml(conflict.courseName)}</span>
+            </li>
+          `,
+        )
+        .join("")}
+      ${
+        conflicts.length > visibleConflicts.length
+          ? `<li>${t("liveConflictMore", { count: conflicts.length - visibleConflicts.length })}</li>`
+          : ""
+      }
+    </ul>
+  `;
 }
 
 function updateRecurrenceFields(formElement) {
@@ -1287,6 +1419,67 @@ function resetCourseForm() {
   form.elements.start.value = "08:00";
   form.elements.end.value = "09:00";
   updateRecurrenceFields(form);
+  renderDraftConflictPreview(form, formConflictPreview);
+}
+
+function openDetailModal(courseId) {
+  const course = getActiveSemester()?.courses.find((item) => item.id === courseId);
+  if (!course) return;
+
+  detailCourseId = course.id;
+  lastFocusedElement = document.activeElement;
+  detailTitle.textContent = course.name;
+  detailContent.innerHTML = renderCourseDetails(course);
+  detailModal.hidden = false;
+  document.body.classList.add("modal-open");
+  detailEditButton.focus();
+}
+
+function renderCourseDetails(course) {
+  const rows = [
+    [t("courseType"), t(`type${capitalize(course.type || "lecture")}`)],
+    [t("recurrence"), getCourseSummary(course)],
+    [t("startTime"), course.start],
+    [t("endTime"), course.end],
+    [t("location"), course.location || t("unsetLocation")],
+  ];
+
+  const linkHtml = course.link
+    ? `<a href="${escapeHtml(course.link)}" target="_blank" rel="noreferrer">${t("openLink")}</a>`
+    : `<span>${t("noLink")}</span>`;
+
+  return `
+    <dl class="detail-list">
+      ${rows
+        .map(
+          ([label, value]) => `
+            <div>
+              <dt>${escapeHtml(label)}</dt>
+              <dd>${escapeHtml(value)}</dd>
+            </div>
+          `,
+        )
+        .join("")}
+      <div>
+        <dt>${t("courseLink")}</dt>
+        <dd>${linkHtml}</dd>
+      </div>
+    </dl>
+    <section class="detail-notes">
+      <h3>${t("courseNotes")}</h3>
+      <p>${escapeHtml(course.notes || t("noNotes")).replaceAll("\n", "<br>")}</p>
+    </section>
+  `;
+}
+
+function closeDetailModal({ restoreFocus = true } = {}) {
+  detailModal.hidden = true;
+  detailCourseId = null;
+  document.body.classList.remove("modal-open");
+
+  if (restoreFocus && lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+    lastFocusedElement.focus();
+  }
 }
 
 function openEditModal(courseId) {
@@ -1304,6 +1497,8 @@ function openEditModal(courseId) {
   editForm.elements.start.value = course.start;
   editForm.elements.end.value = course.end;
   editForm.elements.location.value = course.location || "";
+  editForm.elements.link.value = course.link || "";
+  editForm.elements.notes.value = course.notes || "";
   editForm.elements.color.value = normalizePaletteColor(course.color);
 
   editForm.querySelectorAll('input[name="days"]').forEach((checkbox) => {
@@ -1312,6 +1507,7 @@ function openEditModal(courseId) {
 
   updateRecurrenceFields(editForm);
   renderEditColorOptions(editForm.elements.color.value);
+  renderDraftConflictPreview(editForm, editConflictPreview, editingCourseId);
   editModal.hidden = false;
   document.body.classList.add("modal-open");
   editForm.elements.name.focus();
@@ -1786,8 +1982,19 @@ newSemesterButton.addEventListener("click", () => {
   renderAll();
 });
 
-form.elements.recurrence.addEventListener("change", () => updateRecurrenceFields(form));
-editForm.elements.recurrence.addEventListener("change", () => updateRecurrenceFields(editForm));
+form.elements.recurrence.addEventListener("change", () => {
+  updateRecurrenceFields(form);
+  renderDraftConflictPreview(form, formConflictPreview);
+});
+editForm.elements.recurrence.addEventListener("change", () => {
+  updateRecurrenceFields(editForm);
+  renderDraftConflictPreview(editForm, editConflictPreview, editingCourseId);
+});
+
+form.addEventListener("input", () => renderDraftConflictPreview(form, formConflictPreview));
+form.addEventListener("change", () => renderDraftConflictPreview(form, formConflictPreview));
+editForm.addEventListener("input", () => renderDraftConflictPreview(editForm, editConflictPreview, editingCourseId));
+editForm.addEventListener("change", () => renderDraftConflictPreview(editForm, editConflictPreview, editingCourseId));
 
 editColorOptions.addEventListener("click", (event) => {
   const button = event.target.closest(".color-option");
@@ -1814,6 +2021,7 @@ form.addEventListener("submit", (event) => {
     id: uid(),
     ...draft,
     invalidDates: undefined,
+    link: normalizeOptionalUrl(draft.link),
     color: getNextCourseColor(draft),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -1843,6 +2051,7 @@ editForm.addEventListener("submit", (event) => {
     ...activeSemester.courses[index],
     ...draft,
     invalidDates: undefined,
+    link: normalizeOptionalUrl(draft.link),
     color: normalizePaletteColor(draft.color),
     updatedAt: new Date().toISOString(),
   };
@@ -1867,7 +2076,7 @@ daysGrid.addEventListener("click", (event) => {
 
   const courseBlock = event.target.closest(".course-block");
   if (courseBlock) {
-    openEditModal(courseBlock.dataset.courseId);
+    openDetailModal(courseBlock.dataset.courseId);
   }
 });
 
@@ -1894,7 +2103,31 @@ daysGrid.addEventListener("keydown", (event) => {
   if (!courseBlock || !["Enter", " "].includes(event.key)) return;
 
   event.preventDefault();
-  openEditModal(courseBlock.dataset.courseId);
+  openDetailModal(courseBlock.dataset.courseId);
+});
+
+detailModal.addEventListener("click", (event) => {
+  if (event.target.matches("[data-close-detail]")) {
+    closeDetailModal();
+  }
+});
+
+detailEditButton.addEventListener("click", () => {
+  const courseId = detailCourseId;
+  closeDetailModal({ restoreFocus: false });
+  openEditModal(courseId);
+});
+
+detailDuplicateButton.addEventListener("click", () => {
+  const courseId = detailCourseId;
+  closeDetailModal({ restoreFocus: false });
+  duplicateCourse(courseId);
+});
+
+detailDeleteButton.addEventListener("click", () => {
+  const courseId = detailCourseId;
+  closeDetailModal({ restoreFocus: false });
+  deleteCourse(courseId);
 });
 
 editModal.addEventListener("click", (event) => {
@@ -1904,6 +2137,11 @@ editModal.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !detailModal.hidden) {
+    closeDetailModal();
+    return;
+  }
+
   if (event.key === "Escape" && !editModal.hidden) {
     closeEditModal();
   }

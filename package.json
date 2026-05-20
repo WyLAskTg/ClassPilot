@@ -6,7 +6,9 @@
   "scripts": {
     "icons": "node scripts/create-icons.js",
     "start": "electron .",
-    "build": "npm run icons && electron-builder --win"
+    "build": "npm run icons && electron-builder --win",
+    "screenshot": "electron scripts/capture-screenshot.js",
+    "test": "node scripts/test-state.js && node --check app.js && node --check main.js && node --check preload.js && node --check scripts/create-icons.js && node --check scripts/after-pack.js && node --check scripts/capture-screenshot.js"
   },
   "keywords": [
     "course",
