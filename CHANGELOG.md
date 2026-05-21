@@ -5,6 +5,9 @@
 - Improved course block layout: course code and course name now display on separate lines.
 - Shortened recurring weekday labels: Chinese uses formats like `周一/三`; English uses `MW`, `MWF`, etc.
 - Refined README screenshots and screenshot generation for Chinese/English docs.
+- Rebuilt installer assets with lowercase English filenames.
+- Added a finish-page option for creating a desktop shortcut.
+- Kept app, shortcut, and uninstall names fixed as `ClassPilot` across installer languages.
 
 ## v1.0.0 - 2026-05-20
 

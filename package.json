@@ -26,7 +26,7 @@
   "build": {
     "appId": "com.local.classpilot",
     "productName": "ClassPilot",
-    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "artifactName": "classpilot-setup-${version}.${ext}",
     "afterPack": "scripts/after-pack.js",
     "directories": {
       "buildResources": "build",
@@ -52,7 +52,13 @@
       "createStartMenuShortcut": true,
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "displayLanguageSelector": true,
+      "installerLanguages": [
+        "en_US",
+        "zh_CN"
+      ],
       "shortcutName": "ClassPilot",
+      "uninstallDisplayName": "ClassPilot",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     }
