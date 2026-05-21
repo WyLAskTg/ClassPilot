@@ -837,25 +837,50 @@ input[type="color"] {
 }
 
 .course-top {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 6px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
 }
 
 .course-title {
-  margin: 0 0 4px;
-  font-size: 0.95rem;
-  line-height: 1.15;
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  min-width: 0;
   font-weight: 900;
-  overflow-wrap: anywhere;
+}
+
+.course-code,
+.course-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.course-code {
+  font-size: 0.8rem;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.course-name {
+  font-size: 0.9rem;
+  line-height: 1.12;
+}
+
+.course-title--plain .course-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .course-badges {
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 4px;
 }
 
@@ -891,6 +916,13 @@ input[type="color"] {
   font-weight: 700;
   opacity: 0.94;
   overflow-wrap: anywhere;
+}
+
+.course-repeat {
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .course-actions {

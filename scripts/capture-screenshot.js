@@ -3,12 +3,43 @@ const fs = require("fs");
 const path = require("path");
 
 const rootDir = path.join(__dirname, "..");
-const screenshotPath = path.join(rootDir, "docs", "classpilot-screenshot.png");
+const screenshotLanguage = process.env.CLASSPILOT_SCREENSHOT_LANGUAGE === "zh" ? "zh" : "en";
+const screenshotPath = path.join(
+  rootDir,
+  "docs",
+  screenshotLanguage === "zh" ? "classpilot-screenshot-zh.png" : "classpilot-screenshot.png",
+);
 const storageKey = "course-schedule-tool:v2";
+const sampleText = {
+  en: {
+    semester: "Spring 2026",
+    lecture: "CS101 Algorithms",
+    lab: "LAB201 Systems Lab",
+    exam: "MATH301 Quiz",
+    room: "Room A101",
+    labRoom: "Lab B204",
+    hall: "Hall C",
+    lectureNotes: "Weekly lecture and reading notes.",
+    labNotes: "Bring laptop and charger.",
+    examNotes: "Covers chapters 1-3.",
+  },
+  zh: {
+    semester: "2026 春季学期",
+    lecture: "CS101 算法导论",
+    lab: "LAB201 系统实验",
+    exam: "MATH301 小测",
+    room: "A101 教室",
+    labRoom: "B204 实验室",
+    hall: "C 教学楼",
+    lectureNotes: "每周讲座与阅读笔记。",
+    labNotes: "带电脑和充电器。",
+    examNotes: "范围：第 1-3 章。",
+  },
+}[screenshotLanguage];
 
 const sampleState = {
   version: 2,
-  language: "en",
+  language: screenshotLanguage,
   density: "standard",
   theme: "light",
   reminderLeadMinutes: 0,
@@ -27,14 +58,14 @@ const sampleState = {
   semesters: [
     {
       id: "demo-semester",
-      name: "Spring 2026",
+      name: sampleText.semester,
       startDate: "2026-05-18",
       endDate: "2026-08-30",
       archived: false,
       courses: [
         {
           id: "cs101",
-          name: "CS101 Algorithms",
+          name: sampleText.lecture,
           type: "lecture",
           recurrence: "weekly",
           days: ["1", "3"],
@@ -42,16 +73,16 @@ const sampleState = {
           dates: [],
           start: "09:00",
           end: "10:30",
-          location: "Room A101",
+          location: sampleText.room,
           link: "https://example.com/cs101",
-          notes: "Weekly lecture and reading notes.",
+          notes: sampleText.lectureNotes,
           color: "#2563eb",
           createdAt: "2026-05-18T00:00:00.000Z",
           updatedAt: "2026-05-18T00:00:00.000Z",
         },
         {
           id: "lab201",
-          name: "LAB201 Systems Lab",
+          name: sampleText.lab,
           type: "lab",
           recurrence: "biweekly",
           days: ["2"],
@@ -59,16 +90,16 @@ const sampleState = {
           dates: [],
           start: "13:00",
           end: "15:00",
-          location: "Lab B204",
+          location: sampleText.labRoom,
           link: "",
-          notes: "Bring laptop and charger.",
+          notes: sampleText.labNotes,
           color: "#16a34a",
           createdAt: "2026-05-18T00:00:00.000Z",
           updatedAt: "2026-05-18T00:00:00.000Z",
         },
         {
           id: "exam301",
-          name: "MATH301 Quiz",
+          name: sampleText.exam,
           type: "exam",
           recurrence: "dates",
           days: [],
@@ -76,9 +107,9 @@ const sampleState = {
           dates: ["2026-05-22"],
           start: "11:00",
           end: "12:00",
-          location: "Hall C",
+          location: sampleText.hall,
           link: "",
-          notes: "Covers chapters 1-3.",
+          notes: sampleText.examNotes,
           color: "#dc2626",
           createdAt: "2026-05-18T00:00:00.000Z",
           updatedAt: "2026-05-18T00:00:00.000Z",

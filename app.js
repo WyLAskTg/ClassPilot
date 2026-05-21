@@ -907,7 +907,7 @@ function renderCourses() {
         ? `<p class="course-place">${escapeHtml(course.location || t("unsetLocation"))}</p>`
         : "";
       const recurrenceLine = display.recurrence
-        ? `<p class="course-repeat">${escapeHtml(getCourseSummary(course))}</p>`
+        ? `<p class="course-repeat">${escapeHtml(getCourseCompactSummary(course))}</p>`
         : "";
       const actions = display.actions
         ? `
@@ -933,7 +933,7 @@ function renderCourses() {
       block.style.color = textColor;
       block.innerHTML = `
         <div class="course-top">
-          <h2 class="course-title">${escapeHtml(course.name)}</h2>
+          ${renderCourseTitle(course)}
           <div class="course-badges">
             ${typeBadge}
             ${conflictBadge}
@@ -1255,6 +1255,94 @@ function getCourseSummary(course) {
   }
 
   return t("datesCount", { count: course.dates.length });
+}
+
+function renderCourseTitle(course) {
+  const title = getCourseTitleParts(course.name);
+  const nameLine = title.name
+    ? `<span class="course-name">${escapeHtml(title.name)}</span>`
+    : "";
+
+  if (!title.code) {
+    return `<h2 class="course-title course-title--plain">${nameLine}</h2>`;
+  }
+
+  return `
+    <h2 class="course-title">
+      <span class="course-code">${escapeHtml(title.code)}</span>
+      ${nameLine}
+    </h2>
+  `;
+}
+
+function getCourseTitleParts(value) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  const codePattern = "([A-Za-z]{2,}\\s*\\d{2,}[A-Za-z0-9-]*|[A-Za-z]+\\d+[A-Za-z0-9-]*|\\d+[A-Za-z]+[A-Za-z0-9-]*)";
+  const separatedMatch = text.match(new RegExp(`^${codePattern}(?:\\s*[:\\uFF1A\\-\\u2013\\u2014]\\s*|\\s+)(.+)$`));
+  const codeOnlyMatch = text.match(new RegExp(`^${codePattern}$`));
+
+  if (separatedMatch) {
+    return {
+      code: separatedMatch[1].replace(/\s+/g, ""),
+      name: separatedMatch[2].trim(),
+    };
+  }
+
+  if (codeOnlyMatch) {
+    return {
+      code: codeOnlyMatch[1].replace(/\s+/g, ""),
+      name: "",
+    };
+  }
+
+  return { code: "", name: text };
+}
+
+function getCourseCompactSummary(course) {
+  if (course.recurrence === "weekly") {
+    const days = formatCompactDays(course.days);
+    return days ? `${t("recurrenceWeekly")} \u00b7 ${days}` : t("recurrenceWeekly");
+  }
+
+  if (course.recurrence === "biweekly") {
+    const days = formatCompactDays(course.days);
+    return days ? `${t("recurrenceBiweekly")} \u00b7 ${days}` : t("recurrenceBiweekly");
+  }
+
+  return getCourseSummary(course);
+}
+
+function formatCompactDays(days) {
+  const orderedDays = [...new Set((days || []).map(String))]
+    .filter((day) => ["1", "2", "3", "4", "5", "6", "7"].includes(day))
+    .sort((a, b) => Number(a) - Number(b));
+
+  if (state.language === "en") {
+    const englishDays = {
+      1: "M",
+      2: "T",
+      3: "W",
+      4: "Th",
+      5: "F",
+      6: "Sa",
+      7: "Su",
+    };
+    return orderedDays.map((day) => englishDays[day]).join("");
+  }
+
+  const chineseDays = {
+    1: "\u4e00",
+    2: "\u4e8c",
+    3: "\u4e09",
+    4: "\u56db",
+    5: "\u4e94",
+    6: "\u516d",
+    7: "\u65e5",
+  };
+
+  return orderedDays.length
+    ? `\u5468${orderedDays.map((day) => chineseDays[day]).join("/")}`
+    : "";
 }
 
 function getCourseDraft(formElement) {
