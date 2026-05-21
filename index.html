@@ -126,9 +126,15 @@
             </div>
 
             <form id="course-form" novalidate>
-              <div class="field">
-                <label for="course-name" data-i18n="courseName">课程名称/课程代码</label>
-                <input id="course-name" name="name" type="text" data-i18n-placeholder="courseNamePlaceholder" placeholder="例如 CS101" autocomplete="off" />
+              <div class="identity-fields">
+                <div class="field">
+                  <label for="course-code" data-i18n="courseCode">课程代码</label>
+                  <input id="course-code" name="code" type="text" data-i18n-placeholder="courseCodePlaceholder" placeholder="例如 CS101" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="course-name" data-i18n="courseName">课程名称</label>
+                  <input id="course-name" name="name" type="text" data-i18n-placeholder="courseNamePlaceholder" placeholder="例如 Algorithms" autocomplete="off" />
+                </div>
               </div>
 
               <div class="field">
@@ -297,9 +303,15 @@
             <button class="icon-button" type="button" data-close-modal aria-label="关闭编辑窗口">×</button>
           </div>
 
-          <div class="field">
-            <label for="edit-name" data-i18n="courseName">课程名称/课程代码</label>
-            <input id="edit-name" name="name" type="text" autocomplete="off" />
+          <div class="identity-fields">
+            <div class="field">
+              <label for="edit-code" data-i18n="courseCode">课程代码</label>
+              <input id="edit-code" name="code" type="text" data-i18n-placeholder="courseCodePlaceholder" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="edit-name" data-i18n="courseName">课程名称</label>
+              <input id="edit-name" name="name" type="text" data-i18n-placeholder="courseNamePlaceholder" autocomplete="off" />
+            </div>
           </div>
 
           <div class="field">

@@ -21,6 +21,46 @@ function normalizeOptionalUrl(value) {
   }
 }
 
+function getCourseTitleParts(value) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  const codePattern = "([A-Za-z]{2,}\\s*\\d{2,}[A-Za-z0-9-]*|[A-Za-z]+\\d+[A-Za-z0-9-]*|\\d+[A-Za-z]+[A-Za-z0-9-]*)";
+  const separatedMatch = text.match(new RegExp(`^${codePattern}(?:\\s*[:\\uFF1A\\-\\u2013\\u2014]\\s*|\\s+)(.+)$`));
+  const codeOnlyMatch = text.match(new RegExp(`^${codePattern}$`));
+
+  if (separatedMatch) {
+    return {
+      code: separatedMatch[1].replace(/\s+/g, ""),
+      name: separatedMatch[2].trim(),
+    };
+  }
+
+  if (codeOnlyMatch) {
+    return {
+      code: codeOnlyMatch[1].replace(/\s+/g, ""),
+      name: "",
+    };
+  }
+
+  return { code: "", name: text };
+}
+
+function normalizeCourseIdentity(course) {
+  const code = String(course.code || "").trim();
+  const name = String(course.name || "").trim().replace(/\s+/g, " ");
+
+  if (code) {
+    return {
+      code,
+      name: name || code || "Untitled",
+    };
+  }
+
+  const legacy = getCourseTitleParts(name);
+  if (legacy.code && legacy.name) return legacy;
+  if (legacy.code) return { code: legacy.code, name: legacy.code };
+  return { code: "", name: legacy.name || "Untitled" };
+}
+
 function normalizeCourse(course) {
   const recurrence = ["weekly", "biweekly", "monthly", "dates"].includes(course.recurrence)
     ? course.recurrence
@@ -29,9 +69,12 @@ function normalizeCourse(course) {
     ? course.days.map(String).filter((day) => ["1", "2", "3", "4", "5", "6", "7"].includes(day))
     : [course.day].filter(Boolean).map(String);
 
+  const identity = normalizeCourseIdentity(course);
+
   return {
     id: course.id || "generated",
-    name: String(course.name || "").trim() || "Untitled",
+    code: identity.code,
+    name: identity.name,
     type: ["lecture", "tutorial", "lab", "seminar", "exam", "other"].includes(course.type)
       ? course.type
       : "lecture",
@@ -47,11 +90,25 @@ function normalizeCourse(course) {
   };
 }
 
-assert.strictEqual(packageJson.version, "1.0.1", "package version should match this release");
+assert.strictEqual(packageJson.version, "1.1.0", "package version should match this release");
 assert.deepStrictEqual(normalizeCourse({ name: " CS101 ", days: [3, "1", "3"], link: "https://example.com" }).days, [
   "1",
   "3",
 ]);
+assert.deepStrictEqual(
+  {
+    code: normalizeCourse({ name: "CS101 Algorithms" }).code,
+    name: normalizeCourse({ name: "CS101 Algorithms" }).name,
+  },
+  { code: "CS101", name: "Algorithms" },
+);
+assert.deepStrictEqual(
+  {
+    code: normalizeCourse({ code: " MATH301 ", name: " Quiz " }).code,
+    name: normalizeCourse({ code: " MATH301 ", name: " Quiz " }).name,
+  },
+  { code: "MATH301", name: "Quiz" },
+);
 assert.strictEqual(normalizeCourse({ name: "", type: "bad", recurrence: "bad" }).name, "Untitled");
 assert.strictEqual(normalizeCourse({ link: "javascript:alert(1)" }).link, "");
 assert.strictEqual(normalizeCourse({ link: "mailto:teacher@example.com" }).link, "mailto:teacher@example.com");

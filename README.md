@@ -1,4 +1,4 @@
-# ClassPilot v1.0.1
+# ClassPilot v1.1
 
 ## 中文
 

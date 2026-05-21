@@ -339,6 +339,7 @@ textarea {
   font-weight: 800;
 }
 
+.identity-fields,
 .time-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1155,6 +1156,7 @@ input[type="color"] {
     padding: 12px;
   }
 
+  .identity-fields,
   .time-fields {
     grid-template-columns: 1fr;
   }

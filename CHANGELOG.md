@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0.1 - 2026-05-21
+## v1.1 - 2026-05-21
 
 - Improved course block layout: course code and course name now display on separate lines.
 - Shortened recurring weekday labels: Chinese uses formats like `周一/三`; English uses `MW`, `MWF`, etc.
@@ -8,6 +8,10 @@
 - Rebuilt installer assets with lowercase English filenames.
 - Added a finish-page option for creating a desktop shortcut.
 - Kept app, shortcut, and uninstall names fixed as `ClassPilot` across installer languages.
+- Split course code and course name into separate form fields.
+- Hidden empty location rows instead of showing an unset-location placeholder.
+- Added automatic update checks with release notes in the update dialog.
+- Added update metadata generation and release upload support for `latest.yml`.
 
 ## v1.0.0 - 2026-05-20
 

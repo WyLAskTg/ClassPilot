@@ -72,8 +72,10 @@ const I18N = {
     active: "进行中",
     archived: "已归档",
     addCourseTitle: "添加课程",
-    courseName: "课程名称/课程代码",
-    courseNamePlaceholder: "例如 CS101",
+    courseCode: "课程代码",
+    courseCodePlaceholder: "例如 CS101",
+    courseName: "课程名称",
+    courseNamePlaceholder: "例如 算法导论",
     courseType: "课程类型",
     typeLecture: "Lecture",
     typeTutorial: "Tutorial",
@@ -218,8 +220,10 @@ const I18N = {
     active: "Active",
     archived: "Archived",
     addCourseTitle: "Add Course",
-    courseName: "Course Name / Code",
-    courseNamePlaceholder: "e.g. CS101",
+    courseCode: "Course Code",
+    courseCodePlaceholder: "e.g. CS101",
+    courseName: "Course Name",
+    courseNamePlaceholder: "e.g. Algorithms",
     courseType: "Course Type",
     typeLecture: "Lecture",
     typeTutorial: "Tutorial",
@@ -505,6 +509,35 @@ function normalizeFilters(filters = {}) {
   };
 }
 
+function normalizeCourseIdentity(course) {
+  const code = String(course.code || "").trim();
+  const name = String(course.name || "").trim().replace(/\s+/g, " ");
+
+  if (code) {
+    return {
+      code,
+      name: name || code || "Untitled",
+    };
+  }
+
+  const legacy = getCourseTitleParts(name);
+  if (legacy.code && legacy.name) {
+    return legacy;
+  }
+
+  if (legacy.code) {
+    return {
+      code: legacy.code,
+      name: legacy.code,
+    };
+  }
+
+  return {
+    code: "",
+    name: legacy.name || "Untitled",
+  };
+}
+
 function migrateLegacyCourses(legacyCourses) {
   const grouped = new Map();
 
@@ -517,23 +550,28 @@ function migrateLegacyCourses(legacyCourses) {
     grouped.set(key, existing);
   });
 
-  return [...grouped.values()].map((course) => ({
-    id: uid(),
-    name: String(course.name || "").trim() || "Untitled",
-    type: COURSE_TYPES.includes(course.type) ? course.type : "lecture",
-    recurrence: "weekly",
-    days: [...new Set(course.days.map(String))].sort((a, b) => Number(a) - Number(b)),
-    anchorDate: "",
-    dates: [],
-    start: String(course.start || "08:00"),
-    end: String(course.end || "09:00"),
-    location: String(course.location || ""),
-    link: normalizeOptionalUrl(String(course.link || "")),
-    notes: String(course.notes || ""),
-    color: normalizePaletteColor(String(course.color || "")),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }));
+  return [...grouped.values()].map((course) => {
+    const identity = normalizeCourseIdentity(course);
+
+    return {
+      id: uid(),
+      code: identity.code,
+      name: identity.name,
+      type: COURSE_TYPES.includes(course.type) ? course.type : "lecture",
+      recurrence: "weekly",
+      days: [...new Set(course.days.map(String))].sort((a, b) => Number(a) - Number(b)),
+      anchorDate: "",
+      dates: [],
+      start: String(course.start || "08:00"),
+      end: String(course.end || "09:00"),
+      location: String(course.location || ""),
+      link: normalizeOptionalUrl(String(course.link || "")),
+      notes: String(course.notes || ""),
+      color: normalizePaletteColor(String(course.color || "")),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  });
 }
 
 function normalizeCourse(course) {
@@ -544,9 +582,12 @@ function normalizeCourse(course) {
     ? course.days.map(String).filter((day) => ["1", "2", "3", "4", "5", "6", "7"].includes(day))
     : [course.day].filter(Boolean).map(String);
 
+  const identity = normalizeCourseIdentity(course);
+
   return {
     id: course.id || uid(),
-    name: String(course.name || "").trim() || "Untitled",
+    code: identity.code,
+    name: identity.name,
     type: COURSE_TYPES.includes(course.type) ? course.type : "lecture",
     recurrence,
     days: [...new Set(days)].sort((a, b) => Number(a) - Number(b)),
@@ -903,8 +944,8 @@ function renderCourses() {
         ? `<span class="type-badge">${t(`type${capitalize(course.type || "lecture")}`)}</span>`
         : "";
       const conflictBadge = layout.isConflict ? `<span class="conflict-badge">${t("conflictBadge")}</span>` : "";
-      const locationLine = display.location
-        ? `<p class="course-place">${escapeHtml(course.location || t("unsetLocation"))}</p>`
+      const locationLine = display.location && course.location
+        ? `<p class="course-place">${escapeHtml(course.location)}</p>`
         : "";
       const recurrenceLine = display.recurrence
         ? `<p class="course-repeat">${escapeHtml(getCourseCompactSummary(course))}</p>`
@@ -913,7 +954,7 @@ function renderCourses() {
         ? `
           <div class="course-actions">
             <button class="edit-button" type="button" data-id="${course.id}">${t("edit")}</button>
-            <button class="delete-button" type="button" data-id="${course.id}" aria-label="${t("delete")} ${escapeHtml(course.name)}">${t("delete")}</button>
+            <button class="delete-button" type="button" data-id="${course.id}" aria-label="${t("delete")} ${escapeHtml(getCourseDisplayName(course))}">${t("delete")}</button>
           </div>
         `
         : "";
@@ -924,7 +965,7 @@ function renderCourses() {
       block.dataset.date = occurrence.date;
       block.tabIndex = 0;
       block.setAttribute("role", "button");
-      block.setAttribute("aria-label", `${t("editCourse")} ${course.name}`);
+      block.setAttribute("aria-label", `${t("editCourse")} ${getCourseDisplayName(course)}`);
       block.style.top = `${top}%`;
       block.style.height = `calc(${height}% - 8px)`;
       block.style.left = `calc(${slotLeft}% + 6px)`;
@@ -1066,7 +1107,17 @@ function courseMatchesFilters(course) {
     return true;
   }
 
-  return [course.name, course.location, course.link, course.notes, course.type, typeLabel, getCourseSummary(course)]
+  return [
+    course.code,
+    course.name,
+    getCourseDisplayName(course),
+    course.location,
+    course.link,
+    course.notes,
+    course.type,
+    typeLabel,
+    getCourseSummary(course),
+  ]
     .join(" ")
     .toLowerCase()
     .includes(query);
@@ -1230,8 +1281,8 @@ function getConflictPairs(occurrences) {
           conflicts.push({
             date,
             timeRange: `${minutesToTime(overlapStart)} - ${minutesToTime(overlapEnd)}`,
-            first: first.course.name,
-            second: second.course.name,
+            first: getCourseDisplayName(first.course),
+            second: getCourseDisplayName(second.course),
           });
         }
       }
@@ -1258,8 +1309,9 @@ function getCourseSummary(course) {
 }
 
 function renderCourseTitle(course) {
-  const title = getCourseTitleParts(course.name);
-  const nameLine = title.name
+  const title = getCourseIdentity(course);
+  const hasDuplicateName = title.code && title.name.toLowerCase() === title.code.toLowerCase();
+  const nameLine = title.name && !hasDuplicateName
     ? `<span class="course-name">${escapeHtml(title.name)}</span>`
     : "";
 
@@ -1273,6 +1325,19 @@ function renderCourseTitle(course) {
       ${nameLine}
     </h2>
   `;
+}
+
+function getCourseIdentity(course) {
+  return {
+    code: String(course.code || "").trim(),
+    name: String(course.name || "").trim(),
+  };
+}
+
+function getCourseDisplayName(course) {
+  const { code, name } = getCourseIdentity(course);
+  if (code && name && code.toLowerCase() !== name.toLowerCase()) return `${code} ${name}`;
+  return name || code || "";
 }
 
 function getCourseTitleParts(value) {
@@ -1350,6 +1415,7 @@ function getCourseDraft(formElement) {
   const parsedDates = parseDateList(formData.get("dates"));
 
   return {
+    code: String(formData.get("code") || "").trim(),
     name: String(formData.get("name") || "").trim(),
     type: COURSE_TYPES.includes(String(formData.get("type"))) ? String(formData.get("type")) : "lecture",
     recurrence: String(formData.get("recurrence") || "weekly"),
@@ -1443,7 +1509,7 @@ function getDraftConflicts(draft, semester, excludeCourseId = "") {
 
       conflicts.push({
         date,
-        courseName: course.name,
+        courseName: getCourseDisplayName(course),
         timeRange: `${minutesToTime(Math.max(draftStart, start))} - ${minutesToTime(Math.min(draftEnd, end))}`,
       });
     });
@@ -1516,7 +1582,7 @@ function openDetailModal(courseId) {
 
   detailCourseId = course.id;
   lastFocusedElement = document.activeElement;
-  detailTitle.textContent = course.name;
+  detailTitle.textContent = getCourseDisplayName(course);
   detailContent.innerHTML = renderCourseDetails(course);
   detailModal.hidden = false;
   document.body.classList.add("modal-open");
@@ -1524,13 +1590,17 @@ function openDetailModal(courseId) {
 }
 
 function renderCourseDetails(course) {
+  const identity = getCourseIdentity(course);
+  const showName = identity.name && (!identity.code || identity.name.toLowerCase() !== identity.code.toLowerCase());
   const rows = [
+    identity.code ? [t("courseCode"), identity.code] : null,
+    showName ? [t("courseName"), identity.name] : null,
     [t("courseType"), t(`type${capitalize(course.type || "lecture")}`)],
     [t("recurrence"), getCourseSummary(course)],
     [t("startTime"), course.start],
     [t("endTime"), course.end],
-    [t("location"), course.location || t("unsetLocation")],
-  ];
+    course.location ? [t("location"), course.location] : null,
+  ].filter(Boolean);
 
   const linkHtml = course.link
     ? `<a href="${escapeHtml(course.link)}" target="_blank" rel="noreferrer">${t("openLink")}</a>`
@@ -1577,6 +1647,7 @@ function openEditModal(courseId) {
   editingCourseId = course.id;
   lastFocusedElement = document.activeElement;
   editErrorEl.textContent = "";
+  editForm.elements.code.value = course.code || "";
   editForm.elements.name.value = course.name;
   editForm.elements.type.value = course.type || "lecture";
   editForm.elements.recurrence.value = course.recurrence;
@@ -1598,7 +1669,7 @@ function openEditModal(courseId) {
   renderDraftConflictPreview(editForm, editConflictPreview, editingCourseId);
   editModal.hidden = false;
   document.body.classList.add("modal-open");
-  editForm.elements.name.focus();
+  editForm.elements.code.focus();
 }
 
 function renderEditColorOptions(selectedColor) {
@@ -1684,7 +1755,7 @@ function handleCourseMenuAction({ action, courseId }) {
 
 function showUndoToast(course) {
   clearTimeout(undoTimer);
-  undoMessage.textContent = t("deletedCourse", { name: course.name });
+  undoMessage.textContent = t("deletedCourse", { name: getCourseDisplayName(course) });
   undoToast.hidden = false;
   undoTimer = setTimeout(() => {
     undoToast.hidden = true;
@@ -1754,10 +1825,10 @@ function getNextCourseColor(draft) {
   const activeSemester = getActiveSemester();
   if (!activeSemester) return COLOR_PALETTE[0];
 
-  const normalizedName = draft.name.trim().toLowerCase();
+  const normalizedName = getCourseDisplayName(draft).trim().toLowerCase();
   const conflictingColors = getConflictingColorsForDraft(draft, activeSemester);
   const matchingCourse = activeSemester.courses.find(
-    (course) => course.name.trim().toLowerCase() === normalizedName && course.color,
+    (course) => getCourseDisplayName(course).trim().toLowerCase() === normalizedName && course.color,
   );
 
   if (matchingCourse && !conflictingColors.has(matchingCourse.color)) {
@@ -1882,14 +1953,16 @@ function checkReminders() {
 
     if (secondsUntilReminder <= 0 && secondsUntilReminder > -60 && !sentNotifications.has(key)) {
       sentNotifications.add(key);
-      new Notification(t("notificationTitle", { name: occurrence.course.name }), {
-        body: t("notificationBody", {
-          time: `${occurrence.course.start} - ${occurrence.course.end}`,
-          location: occurrence.course.location || t("unsetLocation"),
-        }),
+      new Notification(t("notificationTitle", { name: getCourseDisplayName(occurrence.course) }), {
+        body: formatCourseTimeLocation(occurrence.course),
       });
     }
   });
+}
+
+function formatCourseTimeLocation(course) {
+  const time = `${course.start} - ${course.end}`;
+  return course.location ? t("notificationBody", { time, location: course.location }) : time;
 }
 
 function getReminderOccurrences(date) {
