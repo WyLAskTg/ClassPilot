@@ -3,6 +3,7 @@ const LEGACY_STORAGE_KEY = "course-schedule-tool:courses";
 const START_MINUTES = 8 * 60;
 const END_MINUTES = 22 * 60;
 const TOTAL_MINUTES = END_MINUTES - START_MINUTES;
+const DRAG_SNAP_MINUTES = 15;
 const DENSITIES = ["compact", "standard", "spacious"];
 const THEMES = ["light", "dark", "system"];
 const COURSE_TYPES = ["lecture", "tutorial", "lab", "seminar", "exam", "other"];
@@ -44,6 +45,13 @@ const I18N = {
     exportDone: "数据已导出。",
     importDone: "数据已导入。",
     importInvalid: "导入文件格式不正确。",
+    exportPdf: "\u5bfc\u51fa PDF",
+    exportImage: "\u5bfc\u51fa\u56fe\u7247",
+    exportIcs: "\u5bfc\u51fa\u65e5\u5386",
+    exportPdfDone: "PDF \u5df2\u5bfc\u51fa\u3002",
+    exportImageDone: "\u56fe\u7247\u5df2\u5bfc\u51fa\u3002",
+    exportIcsDone: "\u65e5\u5386\u6587\u4ef6\u5df2\u5bfc\u51fa\u3002",
+    exportCanceled: "\u5df2\u53d6\u6d88\u5bfc\u51fa\u3002",
     preferences: "偏好设置",
     reminderLead: "上课提醒",
     reminderOff: "关闭",
@@ -192,6 +200,13 @@ const I18N = {
     exportDone: "Data exported.",
     importDone: "Data imported.",
     importInvalid: "Invalid import file.",
+    exportPdf: "Export PDF",
+    exportImage: "Export Image",
+    exportIcs: "Export Calendar",
+    exportPdfDone: "PDF exported.",
+    exportImageDone: "Image exported.",
+    exportIcsDone: "Calendar file exported.",
+    exportCanceled: "Export canceled.",
     preferences: "Preferences",
     reminderLead: "Class Reminder",
     reminderOff: "Off",
@@ -344,6 +359,9 @@ const languageSelect = document.querySelector("#language-select");
 const densitySelect = document.querySelector("#density-select");
 const themeSelect = document.querySelector("#theme-select");
 const exportButton = document.querySelector("#export-button");
+const exportPdfButton = document.querySelector("#export-pdf-button");
+const exportImageButton = document.querySelector("#export-image-button");
+const exportIcsButton = document.querySelector("#export-ics-button");
 const importButton = document.querySelector("#import-button");
 const importFileInput = document.querySelector("#import-file");
 const dataMessage = document.querySelector("#data-message");
@@ -376,6 +394,8 @@ let lastFocusedElement = null;
 let lastDeletedCourse = null;
 let undoTimer = null;
 const sentNotifications = new Set();
+let courseDrag = null;
+let suppressNextCourseClick = false;
 
 archivePastSemesters();
 ensureActiveSemester();
@@ -963,6 +983,8 @@ function renderCourses() {
       block.className = `course-block${layout.isConflict ? " is-conflict" : ""}`;
       block.dataset.courseId = course.id;
       block.dataset.date = occurrence.date;
+      block.dataset.start = String(occurrence.start);
+      block.dataset.end = String(occurrence.end);
       block.tabIndex = 0;
       block.setAttribute("role", "button");
       block.setAttribute("aria-label", `${t("editCourse")} ${getCourseDisplayName(course)}`);
@@ -1735,6 +1757,144 @@ function duplicateCourse(courseId) {
   renderAll();
 }
 
+function beginCourseDrag(event) {
+  if (event.button !== 0 || event.target.closest("button")) return;
+
+  const block = event.target.closest(".course-block");
+  if (!block) return;
+
+  const start = Number(block.dataset.start);
+  const end = Number(block.dataset.end);
+  const blockRect = block.getBoundingClientRect();
+
+  courseDrag = {
+    block,
+    pointerId: event.pointerId,
+    courseId: block.dataset.courseId,
+    fromDate: block.dataset.date,
+    start,
+    end,
+    duration: Math.max(end - start, DRAG_SNAP_MINUTES),
+    offsetX: event.clientX - blockRect.left,
+    offsetY: event.clientY - blockRect.top,
+    originX: event.clientX,
+    originY: event.clientY,
+    active: false,
+  };
+
+  block.setPointerCapture?.(event.pointerId);
+}
+
+function updateCourseDrag(event) {
+  if (!courseDrag || event.pointerId !== courseDrag.pointerId) return;
+
+  const distance = Math.hypot(event.clientX - courseDrag.originX, event.clientY - courseDrag.originY);
+  if (!courseDrag.active && distance < 5) return;
+
+  courseDrag.active = true;
+  suppressNextCourseClick = true;
+  courseDrag.block.classList.add("is-dragging");
+  courseDrag.block.style.transform = `translate(${event.clientX - courseDrag.originX}px, ${event.clientY - courseDrag.originY}px)`;
+  event.preventDefault();
+}
+
+function finishCourseDrag(event) {
+  if (!courseDrag || event.pointerId !== courseDrag.pointerId) return;
+
+  const drag = courseDrag;
+  courseDrag = null;
+  drag.block.releasePointerCapture?.(event.pointerId);
+  drag.block.classList.remove("is-dragging");
+  drag.block.style.transform = "";
+
+  if (!drag.active) return;
+
+  const drop = getCourseDropTarget(event.clientX, event.clientY, drag);
+  if (drop) {
+    moveCourseOccurrence(drag.courseId, drag.fromDate, drop.date, drop.start, drag.duration);
+  }
+
+  setTimeout(() => {
+    suppressNextCourseClick = false;
+  }, 0);
+}
+
+function cancelCourseDrag() {
+  if (!courseDrag) return;
+
+  courseDrag.block.classList.remove("is-dragging");
+  courseDrag.block.style.transform = "";
+  courseDrag = null;
+}
+
+function getCourseDropTarget(clientX, clientY, drag) {
+  const gridRect = daysGrid.getBoundingClientRect();
+  const weekDates = getWeekDates();
+  const columnWidth = gridRect.width / 7;
+  const rawColumn = Math.floor((clientX - gridRect.left) / columnWidth);
+  const columnIndex = clamp(rawColumn, 0, 6);
+  const rawTop = clientY - gridRect.top - drag.offsetY;
+  const rawMinutes = START_MINUTES + (rawTop / gridRect.height) * TOTAL_MINUTES;
+  const snappedStart = clamp(
+    Math.round(rawMinutes / DRAG_SNAP_MINUTES) * DRAG_SNAP_MINUTES,
+    START_MINUTES,
+    END_MINUTES - drag.duration,
+  );
+
+  return {
+    date: weekDates[columnIndex],
+    start: snappedStart,
+  };
+}
+
+function moveCourseOccurrence(courseId, fromDate, toDate, startMinutes, duration) {
+  const activeSemester = getActiveSemester();
+  const course = activeSemester?.courses.find((item) => item.id === courseId);
+  if (!course) return;
+
+  const endMinutes = Math.min(END_MINUTES, startMinutes + duration);
+  course.start = minutesToTime(startMinutes);
+  course.end = minutesToTime(endMinutes);
+  course.updatedAt = new Date().toISOString();
+
+  if (fromDate !== toDate) {
+    moveCourseDate(course, fromDate, toDate);
+  }
+
+  renderAll();
+}
+
+function moveCourseDate(course, fromDate, toDate) {
+  const fromDay = getDayValue(fromDate);
+  const toDay = getDayValue(toDate);
+
+  if (course.recurrence === "weekly" || course.recurrence === "biweekly") {
+    course.days = [...new Set((course.days || []).map((day) => (String(day) === fromDay ? toDay : String(day))))]
+      .sort((a, b) => Number(a) - Number(b));
+
+    if (course.recurrence === "biweekly") {
+      course.anchorDate = toDate;
+    }
+    return;
+  }
+
+  if (course.recurrence === "monthly") {
+    course.anchorDate = toDate;
+    return;
+  }
+
+  if (course.recurrence === "dates") {
+    const dates = Array.isArray(course.dates) ? course.dates : [];
+    course.dates = dates.length > 0
+      ? [...new Set(dates.map((date) => (date === fromDate ? toDate : date)))].sort()
+      : [toDate];
+  }
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function handleCourseMenuAction({ action, courseId }) {
   if (!courseId) return;
 
@@ -1907,6 +2067,7 @@ function getReadableTextColor(hex) {
 }
 
 function getNotificationStatusText() {
+  if (window.classPilotDesktop?.usesSystemReminders) return t("notificationEnabled");
   if (!("Notification" in window)) return t("notificationUnsupported");
   if (Notification.permission === "denied") return t("notificationDenied");
   if (Notification.permission === "granted") return t("notificationEnabled");
@@ -1914,6 +2075,11 @@ function getNotificationStatusText() {
 }
 
 async function requestNotificationPermission() {
+  if (window.classPilotDesktop?.usesSystemReminders) {
+    notificationStatus.textContent = t("notificationEnabled");
+    return true;
+  }
+
   if (!("Notification" in window)) {
     notificationStatus.textContent = t("notificationUnsupported");
     return false;
@@ -1936,6 +2102,10 @@ async function requestNotificationPermission() {
 }
 
 function checkReminders() {
+  if (window.classPilotDesktop?.usesSystemReminders) {
+    return;
+  }
+
   const lead = Number(state.reminderLeadMinutes || 0);
   if (lead <= 0 || !("Notification" in window) || Notification.permission !== "granted") {
     return;
@@ -1963,6 +2133,82 @@ function checkReminders() {
 function formatCourseTimeLocation(course) {
   const time = `${course.start} - ${course.end}`;
   return course.location ? t("notificationBody", { time, location: course.location }) : time;
+}
+
+function buildIcsCalendar(semester) {
+  const now = new Date();
+  const timestamp = formatIcsDateTimeUTC(now);
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//ClassPilot//Schedule//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    `X-WR-CALNAME:${escapeIcsText(getSemesterDisplayName(semester))}`,
+  ];
+
+  semester.courses.forEach((course) => {
+    getCourseDatesInSemester(course, semester).forEach((date) => {
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${course.id}-${date}@classpilot`,
+        `DTSTAMP:${timestamp}`,
+        `DTSTART:${formatIcsLocalDateTime(date, course.start)}`,
+        `DTEND:${formatIcsLocalDateTime(date, course.end)}`,
+        `SUMMARY:${escapeIcsText(getCourseDisplayName(course))}`,
+      );
+
+      if (course.location) {
+        lines.push(`LOCATION:${escapeIcsText(course.location)}`);
+      }
+
+      const description = [getCourseSummary(course), course.notes, course.link].filter(Boolean).join("\n");
+      if (description) {
+        lines.push(`DESCRIPTION:${escapeIcsText(description)}`);
+      }
+
+      lines.push("END:VEVENT");
+    });
+  });
+
+  lines.push("END:VCALENDAR");
+  return `${lines.map(foldIcsLine).join("\r\n")}\r\n`;
+}
+
+function formatIcsLocalDateTime(date, time) {
+  return `${date.replaceAll("-", "")}T${String(time || "00:00").replace(":", "")}00`;
+}
+
+function formatIcsDateTimeUTC(date) {
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}T${String(date.getUTCHours()).padStart(2, "0")}${String(date.getUTCMinutes()).padStart(2, "0")}${String(date.getUTCSeconds()).padStart(2, "0")}Z`;
+}
+
+function escapeIcsText(value) {
+  return String(value || "")
+    .replaceAll("\\", "\\\\")
+    .replaceAll(";", "\\;")
+    .replaceAll(",", "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+function foldIcsLine(line) {
+  const text = String(line);
+  if (text.length <= 74) return text;
+
+  const chunks = [];
+  for (let index = 0; index < text.length; index += 74) {
+    chunks.push(`${index === 0 ? "" : " "}${text.slice(index, index + 74)}`);
+  }
+  return chunks.join("\r\n");
+}
+
+function sanitizeFileName(value) {
+  return String(value || "schedule")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase() || "schedule";
 }
 
 function getReminderOccurrences(date) {
@@ -2054,6 +2300,36 @@ exportButton.addEventListener("click", () => {
   link.click();
   URL.revokeObjectURL(link.href);
   dataMessage.textContent = t("exportDone");
+});
+
+exportPdfButton.addEventListener("click", async () => {
+  const result = await window.classPilotExport?.savePdf?.({
+    defaultPath: `classpilot-schedule-${state.viewWeekStart || todayISO()}.pdf`,
+  });
+
+  dataMessage.textContent = result?.canceled ? t("exportCanceled") : t("exportPdfDone");
+});
+
+exportImageButton.addEventListener("click", async () => {
+  const result = await window.classPilotExport?.saveImage?.({
+    defaultPath: `classpilot-schedule-${state.viewWeekStart || todayISO()}.png`,
+  });
+
+  dataMessage.textContent = result?.canceled ? t("exportCanceled") : t("exportImageDone");
+});
+
+exportIcsButton.addEventListener("click", async () => {
+  const activeSemester = getActiveSemester();
+  if (!activeSemester) return;
+
+  const result = await window.classPilotExport?.saveTextFile?.({
+    title: "Export Calendar",
+    defaultPath: `classpilot-${sanitizeFileName(getSemesterDisplayName(activeSemester))}.ics`,
+    filters: [{ name: "Calendar", extensions: ["ics"] }],
+    content: buildIcsCalendar(activeSemester),
+  });
+
+  dataMessage.textContent = result?.canceled ? t("exportCanceled") : t("exportIcsDone");
 });
 
 importButton.addEventListener("click", () => {
@@ -2220,7 +2496,19 @@ editForm.addEventListener("submit", (event) => {
   renderAll();
 });
 
+daysGrid.addEventListener("pointerdown", beginCourseDrag);
+daysGrid.addEventListener("pointermove", updateCourseDrag);
+daysGrid.addEventListener("pointerup", finishCourseDrag);
+daysGrid.addEventListener("pointercancel", cancelCourseDrag);
+
 daysGrid.addEventListener("click", (event) => {
+  if (suppressNextCourseClick) {
+    suppressNextCourseClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   const deleteButton = event.target.closest(".delete-button");
   if (deleteButton) {
     event.stopPropagation();

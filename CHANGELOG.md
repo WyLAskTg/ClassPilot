@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.2 - 2026-06-02
+
+- Added drag-and-drop course blocks for moving classes to a new weekday and time.
+- Added PDF, PNG image, and ICS calendar export options.
+- Added a system tray menu with the next upcoming class.
+- Kept reminders active in the background after the main window is hidden.
+- Removed the experimental iOS SwiftUI scaffold to keep this release focused on the desktop app.
+
 ## v1.1 - 2026-05-21
 
 - Improved course block layout: course code and course name now display on separate lines.

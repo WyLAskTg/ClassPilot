@@ -1,9 +1,16 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, dialog, Tray, Notification } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs");
 const path = require("path");
 
 app.setName("ClassPilot");
+app.setAppUserModelId("com.local.classpilot");
+
+let mainWindow = null;
+let tray = null;
+let updateTrayTimer = null;
+let reminderTimer = null;
+const sentReminderKeys = new Set();
 
 const UPDATE_DIALOG = {
   zh: {
@@ -61,7 +68,252 @@ function saveStoredState(state) {
   fs.mkdirSync(path.dirname(storagePath), { recursive: true });
   fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), "utf8");
   fs.renameSync(tempPath, storagePath);
+  updateTrayMenu();
   return storagePath;
+}
+
+function getIconPath() {
+  return path.join(__dirname, "build", process.platform === "win32" ? "icon.ico" : "icon.png");
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createWindow();
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function getText(language, key) {
+  const copy = {
+    zh: {
+      show: "\u663e\u793a ClassPilot",
+      quit: "\u9000\u51fa",
+      nextClass: "\u4e0b\u4e00\u8282\u8bfe",
+      noUpcoming: "\u8fd1\u671f\u6ca1\u6709\u8bfe\u7a0b",
+      startsSoon: "\u5373\u5c06\u4e0a\u8bfe",
+      trayTip: "ClassPilot \u8bfe\u7a0b\u63d0\u9192",
+    },
+    en: {
+      show: "Show ClassPilot",
+      quit: "Quit",
+      nextClass: "Next Class",
+      noUpcoming: "No upcoming classes",
+      startsSoon: "starts soon",
+      trayTip: "ClassPilot reminders",
+    },
+  };
+
+  return copy[language]?.[key] || copy.en[key] || key;
+}
+
+function getStateLanguage(state) {
+  return state?.language === "en" ? "en" : "zh";
+}
+
+function createTray() {
+  if (tray) return;
+
+  tray = new Tray(getIconPath());
+  tray.setToolTip("ClassPilot");
+  tray.on("click", showMainWindow);
+  updateTrayMenu();
+
+  updateTrayTimer = setInterval(updateTrayMenu, 60 * 1000);
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+
+  const state = loadStoredState();
+  const language = getStateLanguage(state);
+  const nextClass = getNextClass(state);
+  const nextLabel = nextClass
+    ? `${getText(language, "nextClass")}: ${nextClass.label}`
+    : getText(language, "noUpcoming");
+
+  tray.setToolTip(nextClass ? `ClassPilot - ${nextClass.label}` : getText(language, "trayTip"));
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: nextLabel, enabled: false },
+    { type: "separator" },
+    { label: getText(language, "show"), click: showMainWindow },
+    {
+      label: getText(language, "quit"),
+      click: () => {
+        app.isQuitting = true;
+        app.quit();
+      },
+    },
+  ]));
+}
+
+function startReminderService() {
+  if (reminderTimer) return;
+  reminderTimer = setInterval(checkRemindersInMain, 30 * 1000);
+  checkRemindersInMain();
+}
+
+function checkRemindersInMain() {
+  const state = loadStoredState();
+  const lead = Number(state?.reminderLeadMinutes || 0);
+
+  if (lead <= 0 || !Notification.isSupported()) {
+    return;
+  }
+
+  const now = new Date();
+  const today = formatDateISO(now);
+  const currentSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const language = getStateLanguage(state);
+
+  getOccurrencesForDate(state, today).forEach((occurrence) => {
+    const reminderSeconds = occurrence.start * 60 - lead * 60;
+    const secondsUntilReminder = reminderSeconds - currentSeconds;
+    const key = `${occurrence.course.id}:${today}:${lead}`;
+
+    if (secondsUntilReminder <= 0 && secondsUntilReminder > -60 && !sentReminderKeys.has(key)) {
+      sentReminderKeys.add(key);
+      const notification = new Notification({
+        title: `${getCourseDisplayName(occurrence.course)} ${getText(language, "startsSoon")}`,
+        body: formatCourseTimeLocation(occurrence.course),
+        icon: getIconPath(),
+      });
+
+      notification.on("click", showMainWindow);
+      notification.show();
+    }
+  });
+}
+
+function getNextClass(state) {
+  if (!state?.semesters?.length) return null;
+
+  const now = new Date();
+  const currentDate = formatDateISO(now);
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const candidates = [];
+
+  for (let offset = 0; offset <= 30; offset += 1) {
+    const date = formatDateISO(addDays(now, offset));
+    getOccurrencesForDate(state, date).forEach((occurrence) => {
+      if (date === currentDate && occurrence.end <= currentMinutes) return;
+      candidates.push({ ...occurrence, date });
+    });
+  }
+
+  const next = candidates.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start)[0];
+  if (!next) return null;
+
+  return {
+    ...next,
+    label: `${next.date} ${minutesToTime(next.start)} ${getCourseDisplayName(next.course)}`,
+  };
+}
+
+function getOccurrencesForDate(state, date) {
+  const occurrences = [];
+
+  (state?.semesters || [])
+    .filter((semester) => !semester.archived && date >= semester.startDate && date <= semester.endDate)
+    .forEach((semester) => {
+      (semester.courses || []).forEach((course) => {
+        if (!occursOnDate(course, date)) return;
+
+        const start = timeToMinutes(course.start);
+        const end = timeToMinutes(course.end);
+        if (Number.isNaN(start) || Number.isNaN(end)) return;
+
+        occurrences.push({ course, start, end });
+      });
+    });
+
+  return occurrences;
+}
+
+function occursOnDate(course, date) {
+  if (course.recurrence === "weekly") {
+    return (course.days || []).map(String).includes(getDayValue(date));
+  }
+
+  if (course.recurrence === "biweekly") {
+    if (!course.anchorDate || date < course.anchorDate || !(course.days || []).map(String).includes(getDayValue(date))) {
+      return false;
+    }
+
+    const weekDiff = Math.floor(diffDays(startOfWeekISO(course.anchorDate), startOfWeekISO(date)) / 7);
+    return weekDiff % 2 === 0;
+  }
+
+  if (course.recurrence === "monthly") {
+    if (!course.anchorDate || date < course.anchorDate) return false;
+    return parseDate(date).getDate() === parseDate(course.anchorDate).getDate();
+  }
+
+  if (course.recurrence === "dates") {
+    return (course.dates || []).includes(date);
+  }
+
+  return false;
+}
+
+function getCourseDisplayName(course) {
+  const code = String(course?.code || "").trim();
+  const name = String(course?.name || "").trim();
+  if (code && name && code.toLowerCase() !== name.toLowerCase()) return `${code} ${name}`;
+  return name || code || "Class";
+}
+
+function formatCourseTimeLocation(course) {
+  const time = `${course.start || ""} - ${course.end || ""}`.trim();
+  return course.location ? `${time} · ${course.location}` : time;
+}
+
+function timeToMinutes(value) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return Number.NaN;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function minutesToTime(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function parseDate(value) {
+  return new Date(`${value}T00:00:00`);
+}
+
+function formatDateISO(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfWeekISO(value) {
+  const date = parseDate(value);
+  const day = date.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  return formatDateISO(addDays(date, offset));
+}
+
+function diffDays(start, end) {
+  return Math.round((parseDate(end) - parseDate(start)) / 86400000);
+}
+
+function getDayValue(date) {
+  const day = parseDate(date).getDay();
+  return String(day === 0 ? 7 : day);
 }
 
 function registerIpcHandlers() {
@@ -71,6 +323,61 @@ function registerIpcHandlers() {
 
   ipcMain.handle("storage:save", (_event, state) => saveStoredState(state));
   ipcMain.handle("storage:path", () => getStoragePath());
+
+  ipcMain.handle("export:pdf", async (event, options = {}) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return { canceled: true };
+
+    const result = await dialog.showSaveDialog(window, {
+      title: "Export PDF",
+      defaultPath: options.defaultPath || "classpilot-schedule.pdf",
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+
+    if (result.canceled || !result.filePath) return { canceled: true };
+
+    const pdf = await window.webContents.printToPDF({
+      landscape: true,
+      printBackground: true,
+      margins: { marginType: "minimum" },
+      pageSize: "A4",
+    });
+    fs.writeFileSync(result.filePath, pdf);
+    return { canceled: false, filePath: result.filePath };
+  });
+
+  ipcMain.handle("export:image", async (event, options = {}) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return { canceled: true };
+
+    const result = await dialog.showSaveDialog(window, {
+      title: "Export Image",
+      defaultPath: options.defaultPath || "classpilot-schedule.png",
+      filters: [{ name: "PNG Image", extensions: ["png"] }],
+    });
+
+    if (result.canceled || !result.filePath) return { canceled: true };
+
+    const image = await window.webContents.capturePage();
+    fs.writeFileSync(result.filePath, image.toPNG());
+    return { canceled: false, filePath: result.filePath };
+  });
+
+  ipcMain.handle("export:text-file", async (event, options = {}) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return { canceled: true };
+
+    const result = await dialog.showSaveDialog(window, {
+      title: options.title || "Export",
+      defaultPath: options.defaultPath || "classpilot-export.txt",
+      filters: options.filters || [{ name: "Text", extensions: ["txt"] }],
+    });
+
+    if (result.canceled || !result.filePath) return { canceled: true };
+
+    fs.writeFileSync(result.filePath, String(options.content || ""), "utf8");
+    return { canceled: false, filePath: result.filePath };
+  });
 
   ipcMain.handle("course-menu:show", (event, payload = {}) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -220,13 +527,13 @@ function checkForUpdatesAfterLaunch(mainWindow) {
 }
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1280,
     height: 840,
     minWidth: 980,
     minHeight: 680,
     title: "ClassPilot",
-    icon: path.join(__dirname, "build", process.platform === "win32" ? "icon.ico" : "icon.png"),
+    icon: getIconPath(),
     backgroundColor: "#f5f7fb",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -235,12 +542,17 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, "index.html"));
-  mainWindow.webContents.once("did-finish-load", () => {
-    checkForUpdatesAfterLaunch(mainWindow);
+  window.loadFile(path.join(__dirname, "index.html"));
+  window.webContents.once("did-finish-load", () => {
+    checkForUpdatesAfterLaunch(window);
+  });
+  window.on("close", (event) => {
+    if (app.isQuitting) return;
+    event.preventDefault();
+    window.hide();
   });
 
-  return mainWindow;
+  return window;
 }
 
 function createMenu() {
@@ -268,13 +580,19 @@ function createMenu() {
 app.whenReady().then(() => {
   registerIpcHandlers();
   createMenu();
-  createWindow();
+  mainWindow = createWindow();
+  createTray();
+  startReminderService();
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    showMainWindow();
   });
+});
+
+app.on("before-quit", () => {
+  app.isQuitting = true;
+  if (updateTrayTimer) clearInterval(updateTrayTimer);
+  if (reminderTimer) clearInterval(reminderTimer);
 });
 
 app.on("window-all-closed", () => {

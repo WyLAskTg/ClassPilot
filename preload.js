@@ -14,3 +14,13 @@ contextBridge.exposeInMainWorld("classPilotMenu", {
     return () => ipcRenderer.removeListener("course-menu:action", handler);
   },
 });
+
+contextBridge.exposeInMainWorld("classPilotExport", {
+  savePdf: (options) => ipcRenderer.invoke("export:pdf", options),
+  saveImage: (options) => ipcRenderer.invoke("export:image", options),
+  saveTextFile: (options) => ipcRenderer.invoke("export:text-file", options),
+});
+
+contextBridge.exposeInMainWorld("classPilotDesktop", {
+  usesSystemReminders: true,
+});

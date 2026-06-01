@@ -353,6 +353,12 @@ textarea {
   gap: 10px;
 }
 
+.export-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .color-field {
   grid-template-columns: 1fr 58px;
   align-items: center;
@@ -388,8 +394,19 @@ input[type="color"] {
 }
 
 .color-option {
-  cursor: pointer;
+  cursor: grab;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.28);
+}
+
+.course-block:active {
+  cursor: grabbing;
+}
+
+.course-block.is-dragging {
+  z-index: 12;
+  opacity: 0.92;
+  pointer-events: none;
+  transition: none;
 }
 
 .color-option.is-selected {
@@ -1163,6 +1180,7 @@ input[type="color"] {
 
   .date-fields,
   .split-actions,
+  .export-actions,
   .modal-actions,
   .display-options,
   .stats-grid,
@@ -1173,5 +1191,39 @@ input[type="color"] {
   #week-range {
     margin-left: 0;
     width: 100%;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .app {
+    width: 100%;
+    padding: 0;
+  }
+
+  .app-header,
+  .form-panel,
+  .filter-toolbar,
+  .stats-panel,
+  .week-toolbar,
+  .course-actions,
+  .toast {
+    display: none !important;
+  }
+
+  .workspace {
+    display: block;
+  }
+
+  .schedule-panel {
+    border: 0;
+    box-shadow: none;
+  }
+
+  .schedule-scroll {
+    overflow: visible;
   }
 }
