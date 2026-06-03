@@ -1,7 +1,7 @@
-## ClassPilot v1.2
+## ClassPilot v1.2.1
 
-- Drag course blocks to move classes to a new weekday and time.
-- Export the schedule as PDF, PNG image, or ICS calendar file.
-- Use the system tray to keep reminders running in the background.
-- See the next upcoming class from the tray menu.
-- Removed the experimental iOS scaffold from this desktop release.
+- Added Week, Today, and Month schedule views.
+- Added drag-to-resize course blocks, with undo for move, resize, and delete.
+- Added import preview, automatic local backups, and an About dialog with data paths.
+- Improved schedule export so PDF/PNG focuses on the timetable area.
+- Added a manual update check entry inside the app.

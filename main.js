@@ -10,7 +10,10 @@ let mainWindow = null;
 let tray = null;
 let updateTrayTimer = null;
 let reminderTimer = null;
+let lastBackupAt = 0;
 const sentReminderKeys = new Set();
+const BACKUP_INTERVAL_MS = 10 * 60 * 1000;
+const MAX_BACKUPS = 5;
 
 const UPDATE_DIALOG = {
   zh: {
@@ -25,6 +28,12 @@ const UPDATE_DIALOG = {
     downloadedDetail: "重启 ClassPilot 后将自动安装更新。",
     restartNow: "重启并安装",
     noNotes: "暂无更新说明。",
+    checkingTitle: "\u68c0\u67e5\u66f4\u65b0",
+    checkingMessage: "\u6b63\u5728\u68c0\u67e5 ClassPilot \u66f4\u65b0\u3002",
+    noUpdateTitle: "\u5df2\u662f\u6700\u65b0\u7248\u672c",
+    noUpdateMessage: "ClassPilot \u5df2\u662f\u6700\u65b0\u7248\u672c\u3002",
+    updateUnavailableTitle: "\u65e0\u6cd5\u68c0\u67e5\u66f4\u65b0",
+    updateUnavailableMessage: "\u53ea\u6709\u5b89\u88c5\u540e\u7684 ClassPilot \u624d\u80fd\u81ea\u52a8\u68c0\u67e5\u66f4\u65b0\u3002",
   },
   en: {
     title: "Update Available",
@@ -38,6 +47,12 @@ const UPDATE_DIALOG = {
     downloadedDetail: "Restart ClassPilot to install the update.",
     restartNow: "Restart and Install",
     noNotes: "No release notes available.",
+    checkingTitle: "Check for Updates",
+    checkingMessage: "ClassPilot is checking for updates.",
+    noUpdateTitle: "You're Up to Date",
+    noUpdateMessage: "ClassPilot is already up to date.",
+    updateUnavailableTitle: "Cannot Check for Updates",
+    updateUnavailableMessage: "Automatic update checks are only available in the installed ClassPilot app.",
   },
 };
 
@@ -46,6 +61,10 @@ let updateDownloadStarted = false;
 
 function getStoragePath() {
   return path.join(app.getPath("userData"), "classpilot-data.json");
+}
+
+function getBackupDir() {
+  return path.join(app.getPath("userData"), "backups");
 }
 
 function loadStoredState() {
@@ -66,10 +85,42 @@ function saveStoredState(state) {
   const storagePath = getStoragePath();
   const tempPath = `${storagePath}.tmp`;
   fs.mkdirSync(path.dirname(storagePath), { recursive: true });
+  createBackupIfNeeded(storagePath);
   fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), "utf8");
   fs.renameSync(tempPath, storagePath);
   updateTrayMenu();
   return storagePath;
+}
+
+function createBackupIfNeeded(storagePath) {
+  if (!fs.existsSync(storagePath) || Date.now() - lastBackupAt < BACKUP_INTERVAL_MS) {
+    return;
+  }
+
+  try {
+    const backupDir = getBackupDir();
+    fs.mkdirSync(backupDir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    fs.copyFileSync(storagePath, path.join(backupDir, `classpilot-data-${timestamp}.json`));
+    lastBackupAt = Date.now();
+    cleanupBackups(backupDir);
+  } catch (error) {
+    console.error("Failed to create ClassPilot backup:", error);
+  }
+}
+
+function cleanupBackups(backupDir) {
+  const backups = fs.readdirSync(backupDir)
+    .filter((name) => /^classpilot-data-.+\.json$/.test(name))
+    .map((name) => {
+      const filePath = path.join(backupDir, name);
+      return { name, filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  backups.slice(MAX_BACKUPS).forEach((backup) => {
+    fs.rmSync(backup.filePath, { force: true });
+  });
 }
 
 function getIconPath() {
@@ -323,6 +374,19 @@ function registerIpcHandlers() {
 
   ipcMain.handle("storage:save", (_event, state) => saveStoredState(state));
   ipcMain.handle("storage:path", () => getStoragePath());
+  ipcMain.handle("storage:backups-path", () => getBackupDir());
+  ipcMain.handle("app:info", () => ({
+    version: formatAppVersion(app.getVersion()),
+    rawVersion: app.getVersion(),
+    storagePath: getStoragePath(),
+    backupsPath: getBackupDir(),
+    isPackaged: app.isPackaged,
+  }));
+
+  ipcMain.handle("update:check", async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return checkForUpdatesManually(window);
+  });
 
   ipcMain.handle("export:pdf", async (event, options = {}) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -358,7 +422,7 @@ function registerIpcHandlers() {
 
     if (result.canceled || !result.filePath) return { canceled: true };
 
-    const image = await window.webContents.capturePage();
+    const image = await window.webContents.capturePage(options.bounds || undefined);
     fs.writeFileSync(result.filePath, image.toPNG());
     return { canceled: false, filePath: result.filePath };
   });
@@ -524,6 +588,62 @@ function checkForUpdatesAfterLaunch(mainWindow) {
       console.error("ClassPilot update check failed:", error);
     });
   }, 1500);
+}
+
+async function checkForUpdatesManually(window) {
+  const messages = getUpdateMessages();
+
+  if (!app.isPackaged) {
+    await dialog.showMessageBox(window, {
+      type: "info",
+      title: messages.updateUnavailableTitle,
+      message: messages.updateUnavailableMessage,
+      noLink: true,
+    });
+    return { ok: false, reason: "not-packaged" };
+  }
+
+  checkForUpdatesAfterLaunch(window);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      autoUpdater.off("update-not-available", handleNoUpdate);
+      autoUpdater.off("error", handleError);
+      resolve(result);
+    };
+    const handleNoUpdate = async () => {
+      await dialog.showMessageBox(window, {
+        type: "info",
+        title: messages.noUpdateTitle,
+        message: messages.noUpdateMessage,
+        noLink: true,
+      });
+      finish({ ok: true, updateAvailable: false });
+    };
+    const handleError = async (error) => {
+      console.error("Manual ClassPilot update check failed:", error);
+      await dialog.showMessageBox(window, {
+        type: "warning",
+        title: messages.updateUnavailableTitle,
+        message: String(error?.message || error || messages.updateUnavailableMessage),
+        noLink: true,
+      });
+      finish({ ok: false, reason: "error" });
+    };
+
+    autoUpdater.once("update-not-available", handleNoUpdate);
+    autoUpdater.once("error", handleError);
+    autoUpdater.checkForUpdates()
+      .then((result) => {
+        if (result?.updateInfo && result.updateInfo.version !== app.getVersion()) {
+          finish({ ok: true, updateAvailable: true });
+        }
+      })
+      .catch(handleError);
+  });
 }
 
 function createWindow() {

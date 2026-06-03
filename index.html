@@ -92,6 +92,10 @@
               <button class="secondary-button" id="export-image-button" type="button" data-i18n="exportImage">导出图片</button>
               <button class="secondary-button" id="export-ics-button" type="button" data-i18n="exportIcs">导出日历</button>
             </div>
+            <div class="split-actions">
+              <button class="secondary-button" id="check-update-button" type="button" data-i18n="checkUpdates">检查更新</button>
+              <button class="secondary-button" id="about-button" type="button" data-i18n="about">关于</button>
+            </div>
             <input id="import-file" type="file" accept="application/json,.json" hidden />
             <p id="data-message" class="field-help" aria-live="polite"></p>
           </section>
@@ -256,6 +260,11 @@
           </div>
           <section class="stats-panel" id="stats-panel" aria-label="课程统计"></section>
           <div class="week-toolbar">
+            <div class="view-switch" role="group" aria-label="视图">
+              <button class="secondary-button" type="button" data-view-mode="week" data-i18n="weekView">周</button>
+              <button class="secondary-button" type="button" data-view-mode="today" data-i18n="todayView">今天</button>
+              <button class="secondary-button" type="button" data-view-mode="month" data-i18n="monthView">月</button>
+            </div>
             <button class="secondary-button" id="prev-week-button" type="button" data-i18n="previousWeek">上一周</button>
             <button class="secondary-button" id="today-week-button" type="button" data-i18n="thisWeek">本周</button>
             <button class="secondary-button" id="next-week-button" type="button" data-i18n="nextWeek">下一周</button>
@@ -404,6 +413,24 @@
             <button class="submit-button" type="submit" data-i18n="saveChanges">保存修改</button>
           </div>
         </form>
+      </section>
+    </div>
+
+    <div class="modal" id="about-modal" hidden>
+      <div class="modal-backdrop" data-close-about></div>
+      <section class="modal-card detail-card" role="dialog" aria-modal="true" aria-labelledby="about-title">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" data-i18n="about">关于</p>
+            <h2 id="about-title">ClassPilot</h2>
+          </div>
+          <button class="icon-button" type="button" data-close-about aria-label="关闭窗口">×</button>
+        </div>
+        <div class="detail-content" id="about-content"></div>
+        <div class="modal-actions detail-actions">
+          <button class="secondary-button" id="about-update-button" type="button" data-i18n="checkUpdates">检查更新</button>
+          <button class="submit-button" type="button" data-close-about data-i18n="cancel">关闭</button>
+        </div>
       </section>
     </div>
 

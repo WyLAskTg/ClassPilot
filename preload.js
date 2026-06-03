@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("classPilotStorage", {
   loadSync: () => ipcRenderer.sendSync("storage:load-sync"),
   save: (state) => ipcRenderer.invoke("storage:save", state),
   getPath: () => ipcRenderer.invoke("storage:path"),
+  getBackupsPath: () => ipcRenderer.invoke("storage:backups-path"),
 });
 
 contextBridge.exposeInMainWorld("classPilotMenu", {
@@ -23,4 +24,6 @@ contextBridge.exposeInMainWorld("classPilotExport", {
 
 contextBridge.exposeInMainWorld("classPilotDesktop", {
   usesSystemReminders: true,
+  getAppInfo: () => ipcRenderer.invoke("app:info"),
+  checkForUpdates: () => ipcRenderer.invoke("update:check"),
 });

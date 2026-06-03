@@ -6,6 +6,7 @@ const TOTAL_MINUTES = END_MINUTES - START_MINUTES;
 const DRAG_SNAP_MINUTES = 15;
 const DENSITIES = ["compact", "standard", "spacious"];
 const THEMES = ["light", "dark", "system"];
+const VIEW_MODES = ["week", "today", "month"];
 const COURSE_TYPES = ["lecture", "tutorial", "lab", "seminar", "exam", "other"];
 const COLOR_PALETTE = [
   "#2563eb",
@@ -45,6 +46,8 @@ const I18N = {
     exportDone: "数据已导出。",
     importDone: "数据已导入。",
     importInvalid: "导入文件格式不正确。",
+    importPreview: "\u5bfc\u5165\u9884\u89c8",
+    importPreviewDetail: "\u5c06\u5bfc\u5165 {semesterCount} \u4e2a\u5b66\u671f\u3001{courseCount} \u95e8\u8bfe\u3002\u5f53\u524d\u6570\u636e\u6709 {currentSemesterCount} \u4e2a\u5b66\u671f\u3001{currentCourseCount} \u95e8\u8bfe\u3002\u7ee7\u7eed\u540e\u4f1a\u66ff\u6362\u5f53\u524d\u6570\u636e\u3002",
     exportPdf: "\u5bfc\u51fa PDF",
     exportImage: "\u5bfc\u51fa\u56fe\u7247",
     exportIcs: "\u5bfc\u51fa\u65e5\u5386",
@@ -52,6 +55,16 @@ const I18N = {
     exportImageDone: "\u56fe\u7247\u5df2\u5bfc\u51fa\u3002",
     exportIcsDone: "\u65e5\u5386\u6587\u4ef6\u5df2\u5bfc\u51fa\u3002",
     exportCanceled: "\u5df2\u53d6\u6d88\u5bfc\u51fa\u3002",
+    weekView: "\u5468",
+    todayView: "\u4eca\u5929",
+    monthView: "\u6708",
+    checkUpdates: "\u68c0\u67e5\u66f4\u65b0",
+    about: "\u5173\u4e8e",
+    appVersion: "\u7248\u672c",
+    dataPath: "\u6570\u636e\u4f4d\u7f6e",
+    backupsPath: "\u5907\u4efd\u4f4d\u7f6e",
+    dragMoved: "\u5df2\u79fb\u52a8 {name}",
+    dragResized: "\u5df2\u8c03\u6574 {name} \u65f6\u957f",
     preferences: "偏好设置",
     reminderLead: "上课提醒",
     reminderOff: "关闭",
@@ -200,6 +213,8 @@ const I18N = {
     exportDone: "Data exported.",
     importDone: "Data imported.",
     importInvalid: "Invalid import file.",
+    importPreview: "Import Preview",
+    importPreviewDetail: "Import {semesterCount} semester(s) and {courseCount} course(s). Current data has {currentSemesterCount} semester(s) and {currentCourseCount} course(s). Continuing will replace the current data.",
     exportPdf: "Export PDF",
     exportImage: "Export Image",
     exportIcs: "Export Calendar",
@@ -207,6 +222,16 @@ const I18N = {
     exportImageDone: "Image exported.",
     exportIcsDone: "Calendar file exported.",
     exportCanceled: "Export canceled.",
+    weekView: "Week",
+    todayView: "Today",
+    monthView: "Month",
+    checkUpdates: "Check Updates",
+    about: "About",
+    appVersion: "Version",
+    dataPath: "Data Path",
+    backupsPath: "Backups Path",
+    dragMoved: "Moved {name}",
+    dragResized: "Resized {name}",
     preferences: "Preferences",
     reminderLead: "Class Reminder",
     reminderOff: "Off",
@@ -362,6 +387,8 @@ const exportButton = document.querySelector("#export-button");
 const exportPdfButton = document.querySelector("#export-pdf-button");
 const exportImageButton = document.querySelector("#export-image-button");
 const exportIcsButton = document.querySelector("#export-ics-button");
+const checkUpdateButton = document.querySelector("#check-update-button");
+const aboutButton = document.querySelector("#about-button");
 const importButton = document.querySelector("#import-button");
 const importFileInput = document.querySelector("#import-file");
 const dataMessage = document.querySelector("#data-message");
@@ -386,12 +413,17 @@ const weekDateInput = document.querySelector("#week-date");
 const prevWeekButton = document.querySelector("#prev-week-button");
 const todayWeekButton = document.querySelector("#today-week-button");
 const nextWeekButton = document.querySelector("#next-week-button");
+const viewModeButtons = document.querySelectorAll("[data-view-mode]");
+const aboutModal = document.querySelector("#about-modal");
+const aboutContent = document.querySelector("#about-content");
+const aboutUpdateButton = document.querySelector("#about-update-button");
 
 let state = loadState();
 let editingCourseId = null;
 let detailCourseId = null;
 let lastFocusedElement = null;
 let lastDeletedCourse = null;
+let lastUndoAction = null;
 let undoTimer = null;
 const sentNotifications = new Set();
 let courseDrag = null;
@@ -469,6 +501,12 @@ function sanitizeState(stored) {
     filters: normalizeFilters(stored.filters),
     activeSemesterId: stored.activeSemesterId || semesters[0]?.id || "",
     viewWeekStart: isValidDateString(stored.viewWeekStart) ? startOfWeekISO(stored.viewWeekStart) : startOfWeekISO(todayISO()),
+    viewMode: VIEW_MODES.includes(stored.viewMode) ? stored.viewMode : "week",
+    viewDate: isValidDateString(stored.viewDate)
+      ? stored.viewDate
+      : isValidDateString(stored.viewWeekStart)
+        ? stored.viewWeekStart
+        : todayISO(),
     semesters,
   };
 }
@@ -504,6 +542,8 @@ function migrateLegacyState() {
     filters: normalizeFilters(),
     activeSemesterId: semester.id,
     viewWeekStart: startDate,
+    viewMode: "week",
+    viewDate: startDate,
     semesters: [semester],
   };
 }
@@ -659,6 +699,14 @@ function ensureActiveSemester() {
   if (!isValidDateString(state.viewWeekStart)) {
     state.viewWeekStart = getInitialWeekForSemester(getActiveSemester());
   }
+
+  if (!VIEW_MODES.includes(state.viewMode)) {
+    state.viewMode = "week";
+  }
+
+  if (!isValidDateString(state.viewDate)) {
+    state.viewDate = state.viewWeekStart;
+  }
 }
 
 function getActiveSemester() {
@@ -718,6 +766,75 @@ function getWeekDates() {
   return Array.from({ length: 7 }, (_, index) => formatISODate(addDays(start, index)));
 }
 
+function getViewAnchorDate() {
+  if (isValidDateString(state.viewDate)) return state.viewDate;
+  if (isValidDateString(state.viewWeekStart)) return state.viewWeekStart;
+  return todayISO();
+}
+
+function getVisibleDates() {
+  if (state.viewMode === "today") {
+    return [getViewAnchorDate()];
+  }
+
+  if (state.viewMode === "month") {
+    return getMonthGridDates();
+  }
+
+  return getWeekDates();
+}
+
+function getMonthGridDates() {
+  const anchor = parseDate(getViewAnchorDate());
+  const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const start = addDays(firstOfMonth, 1 - (firstOfMonth.getDay() || 7));
+  return Array.from({ length: 42 }, (_, index) => formatISODate(addDays(start, index)));
+}
+
+function getMonthDates() {
+  const anchor = parseDate(getViewAnchorDate());
+  const cursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const dates = [];
+
+  while (cursor.getMonth() === anchor.getMonth()) {
+    dates.push(formatISODate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
+}
+
+function getStatisticDates() {
+  return state.viewMode === "month" ? getMonthDates() : getVisibleDates();
+}
+
+function setViewDate(value) {
+  const date = isValidDateString(value) ? value : todayISO();
+  state.viewDate = date;
+  state.viewWeekStart = startOfWeekISO(date);
+}
+
+function shiftView(amount) {
+  if (state.viewMode === "month") {
+    const anchor = parseDate(getViewAnchorDate());
+    const next = new Date(anchor.getFullYear(), anchor.getMonth() + amount, 1);
+    setViewDate(formatISODate(next));
+    return;
+  }
+
+  const step = state.viewMode === "today" ? amount : amount * 7;
+  setViewDate(formatISODate(addDays(parseDate(getViewAnchorDate()), step)));
+}
+
+function formatMonthLabel(value) {
+  const date = parseDate(value);
+  if (state.language === "en") {
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function getDayValue(value) {
   const day = parseDate(value).getDay();
   return String(day === 0 ? 7 : day);
@@ -764,6 +881,8 @@ function applyTranslations() {
   document.documentElement.lang = state.language === "en" ? "en" : "zh-CN";
   document.documentElement.dataset.density = state.density || "standard";
   document.documentElement.dataset.theme = getResolvedTheme();
+  document.documentElement.dataset.viewMode = state.viewMode || "week";
+  document.documentElement.style.setProperty("--visible-days", state.viewMode === "today" ? "1" : "7");
   document.title = t("appTitle");
   languageSelect.value = state.language;
   densitySelect.value = state.density || "standard";
@@ -778,7 +897,7 @@ function applyTranslations() {
     element.placeholder = t(element.dataset.i18nPlaceholder);
   });
 
-  document.querySelectorAll("[data-close-modal].icon-button, [data-close-detail].icon-button").forEach((button) => {
+  document.querySelectorAll("[data-close-modal].icon-button, [data-close-detail].icon-button, [data-close-about].icon-button").forEach((button) => {
     button.setAttribute("aria-label", t("closeDialog"));
   });
 }
@@ -860,18 +979,44 @@ function renderSettingsControls() {
 }
 
 function renderWeekControls() {
+  const anchor = getViewAnchorDate();
   const weekDates = getWeekDates();
-  weekDateInput.value = weekDates[0];
+  weekDateInput.value = anchor;
+  viewModeButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.viewMode === state.viewMode);
+  });
+
+  if (state.viewMode === "today") {
+    weekRange.textContent = anchor;
+    return;
+  }
+
+  if (state.viewMode === "month") {
+    weekRange.textContent = formatMonthLabel(anchor);
+    return;
+  }
+
   weekRange.textContent = `${weekDates[0]} - ${weekDates[6]}`;
 }
 
 function renderHeader() {
   const activeSemester = getActiveSemester();
-  const weekDates = getWeekDates();
+  const visibleDates = getVisibleDates();
+
+  if (state.viewMode === "month") {
+    weekHeader.innerHTML = ["1", "2", "3", "4", "5", "6", "7"]
+      .map((day) => `
+        <div class="day-heading">
+          <span>${t(`dayLong${day}`)}</span>
+        </div>
+      `)
+      .join("");
+    return;
+  }
 
   weekHeader.innerHTML = `
     <div class="corner">${t("time")}</div>
-    ${weekDates
+    ${visibleDates
       .map((date) => {
         const dayValue = getDayValue(date);
         const classes = [
@@ -894,6 +1039,11 @@ function renderHeader() {
 }
 
 function renderTimeColumn() {
+  if (state.viewMode === "month") {
+    timeColumn.innerHTML = "";
+    return;
+  }
+
   const labels = [];
 
   for (let minutes = START_MINUTES; minutes <= END_MINUTES; minutes += 60) {
@@ -905,17 +1055,52 @@ function renderTimeColumn() {
 }
 
 function renderDayColumns() {
-  daysGrid.innerHTML = getWeekDates().map((date) => `<div class="day-column" data-date="${date}"></div>`).join("");
+  daysGrid.classList.toggle("is-month-grid", state.viewMode === "month");
+
+  if (state.viewMode === "month") {
+    const activeSemester = getActiveSemester();
+    const anchorMonth = parseDate(getViewAnchorDate()).getMonth();
+    daysGrid.innerHTML = getMonthGridDates()
+      .map((date) => {
+        const parsed = parseDate(date);
+        const classes = [
+          "month-cell",
+          date === todayISO() ? "is-today" : "",
+          parsed.getMonth() !== anchorMonth ? "is-outside-month" : "",
+          activeSemester && !dateInRange(date, activeSemester.startDate, activeSemester.endDate) ? "is-outside-semester" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return `
+          <div class="${classes}" data-date="${date}">
+            <div class="month-date">
+              <strong>${parsed.getDate()}</strong>
+              <span>${formatDisplayDate(date)}</span>
+            </div>
+            <div class="month-course-list"></div>
+          </div>
+        `;
+      })
+      .join("");
+    return;
+  }
+
+  daysGrid.innerHTML = getVisibleDates().map((date) => `<div class="day-column" data-date="${date}"></div>`).join("");
 }
 
 function renderCurrentTimeLine() {
   document.querySelectorAll(".current-time-line").forEach((line) => line.remove());
 
+  if (state.viewMode === "month") {
+    return;
+  }
+
   const now = new Date();
   const today = formatISODate(now);
   const minutes = now.getHours() * 60 + now.getMinutes();
 
-  if (!getWeekDates().includes(today) || minutes < START_MINUTES || minutes > END_MINUTES) {
+  if (!getVisibleDates().includes(today) || minutes < START_MINUTES || minutes > END_MINUTES) {
     return;
   }
 
@@ -932,9 +1117,17 @@ function renderCurrentTimeLine() {
 
 function renderCourses() {
   document.querySelectorAll(".course-block").forEach((block) => block.remove());
+  document.querySelectorAll(".month-course, .month-more").forEach((item) => item.remove());
   document.querySelector(".empty-state")?.remove();
 
-  const occurrences = getOccurrencesForWeek();
+  if (state.viewMode === "month") {
+    const occurrences = getOccurrencesForDates(getMonthGridDates());
+    renderConflictPanel(occurrences);
+    renderMonthCourses(occurrences);
+    return;
+  }
+
+  const occurrences = getOccurrencesForDates(getVisibleDates());
   renderConflictPanel(occurrences);
 
   if (occurrences.length === 0) {
@@ -1008,10 +1201,54 @@ function renderCourses() {
           ${recurrenceLine}
         </div>
         ${actions}
+        <span class="course-resize-handle" aria-hidden="true"></span>
       `;
 
       column.append(block);
     });
+}
+
+function renderMonthCourses(occurrences) {
+  if (occurrences.length === 0) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "empty-state";
+    emptyState.textContent = t("noCourses");
+    daysGrid.append(emptyState);
+    return;
+  }
+
+  const byDate = new Map();
+  occurrences
+    .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start || a.end - b.end)
+    .forEach((occurrence) => {
+      const list = byDate.get(occurrence.date) || [];
+      list.push(occurrence);
+      byDate.set(occurrence.date, list);
+    });
+
+  byDate.forEach((items, date) => {
+    const cell = daysGrid.querySelector(`[data-date="${date}"] .month-course-list`);
+    if (!cell) return;
+
+    items.slice(0, 4).forEach((occurrence) => {
+      const course = occurrence.course;
+      const button = document.createElement("button");
+      button.className = "month-course";
+      button.type = "button";
+      button.dataset.courseId = course.id;
+      button.style.background = course.color;
+      button.style.color = getReadableTextColor(course.color);
+      button.textContent = `${course.start} ${getCourseDisplayName(course)}`;
+      cell.append(button);
+    });
+
+    if (items.length > 4) {
+      const more = document.createElement("span");
+      more.className = "month-more";
+      more.textContent = `+${items.length - 4}`;
+      cell.append(more);
+    }
+  });
 }
 
 function renderStatistics() {
@@ -1022,7 +1259,7 @@ function renderStatistics() {
   }
 
   const filteredCourses = activeSemester.courses.filter(courseMatchesFilters);
-  const occurrences = getOccurrencesForWeek();
+  const occurrences = getOccurrencesForDates(getStatisticDates());
   const conflictTotal = getConflictPairs(occurrences).length;
   const totalMinutes = occurrences.reduce((sum, occurrence) => sum + occurrence.end - occurrence.start, 0);
   const dayCounts = new Map();
@@ -1085,16 +1322,19 @@ function formatHours(minutes) {
 }
 
 function getOccurrencesForWeek() {
+  return getOccurrencesForDates(getWeekDates());
+}
+
+function getOccurrencesForDates(dates) {
   const activeSemester = getActiveSemester();
   if (!activeSemester) return [];
 
-  const weekDates = getWeekDates();
   const occurrences = [];
 
   activeSemester.courses.forEach((course) => {
     if (!courseMatchesFilters(course)) return;
 
-    weekDates.forEach((date) => {
+    dates.forEach((date) => {
       if (!dateInRange(date, activeSemester.startDate, activeSemester.endDate)) return;
       if (!occursOnDate(course, date)) return;
 
@@ -1733,6 +1973,10 @@ function deleteCourse(courseId) {
     semesterId: activeSemester.id,
     index,
   };
+  lastUndoAction = {
+    type: "delete",
+    ...lastDeletedCourse,
+  };
   saveState();
   renderAll();
   showUndoToast(deletedCourse);
@@ -1763,18 +2007,25 @@ function beginCourseDrag(event) {
   const block = event.target.closest(".course-block");
   if (!block) return;
 
+  const activeSemester = getActiveSemester();
+  const course = activeSemester?.courses.find((item) => item.id === block.dataset.courseId);
+  if (!course) return;
+
+  const resizeHandle = event.target.closest(".course-resize-handle");
   const start = Number(block.dataset.start);
   const end = Number(block.dataset.end);
   const blockRect = block.getBoundingClientRect();
 
   courseDrag = {
     block,
+    mode: resizeHandle ? "resize" : "move",
     pointerId: event.pointerId,
     courseId: block.dataset.courseId,
     fromDate: block.dataset.date,
     start,
     end,
     duration: Math.max(end - start, DRAG_SNAP_MINUTES),
+    previousCourse: cloneCourse(course),
     offsetX: event.clientX - blockRect.left,
     offsetY: event.clientY - blockRect.top,
     originX: event.clientX,
@@ -1794,7 +2045,14 @@ function updateCourseDrag(event) {
   courseDrag.active = true;
   suppressNextCourseClick = true;
   courseDrag.block.classList.add("is-dragging");
-  courseDrag.block.style.transform = `translate(${event.clientX - courseDrag.originX}px, ${event.clientY - courseDrag.originY}px)`;
+
+  if (courseDrag.mode === "resize") {
+    const nextEnd = getResizeEndMinutes(event.clientY, courseDrag);
+    const height = ((nextEnd - courseDrag.start) / TOTAL_MINUTES) * 100;
+    courseDrag.block.style.height = `calc(${height}% - 8px)`;
+  } else {
+    courseDrag.block.style.transform = `translate(${event.clientX - courseDrag.originX}px, ${event.clientY - courseDrag.originY}px)`;
+  }
   event.preventDefault();
 }
 
@@ -1806,12 +2064,18 @@ function finishCourseDrag(event) {
   drag.block.releasePointerCapture?.(event.pointerId);
   drag.block.classList.remove("is-dragging");
   drag.block.style.transform = "";
+  drag.block.style.height = "";
 
   if (!drag.active) return;
 
-  const drop = getCourseDropTarget(event.clientX, event.clientY, drag);
-  if (drop) {
-    moveCourseOccurrence(drag.courseId, drag.fromDate, drop.date, drop.start, drag.duration);
+  if (drag.mode === "resize") {
+    const nextEnd = getResizeEndMinutes(event.clientY, drag);
+    resizeCourseOccurrence(drag.courseId, nextEnd, drag.previousCourse);
+  } else {
+    const drop = getCourseDropTarget(event.clientX, event.clientY, drag);
+    if (drop) {
+      moveCourseOccurrence(drag.courseId, drag.fromDate, drop.date, drop.start, drag.duration, drag.previousCourse);
+    }
   }
 
   setTimeout(() => {
@@ -1824,15 +2088,16 @@ function cancelCourseDrag() {
 
   courseDrag.block.classList.remove("is-dragging");
   courseDrag.block.style.transform = "";
+  courseDrag.block.style.height = "";
   courseDrag = null;
 }
 
 function getCourseDropTarget(clientX, clientY, drag) {
   const gridRect = daysGrid.getBoundingClientRect();
-  const weekDates = getWeekDates();
-  const columnWidth = gridRect.width / 7;
+  const visibleDates = getVisibleDates();
+  const columnWidth = gridRect.width / visibleDates.length;
   const rawColumn = Math.floor((clientX - gridRect.left) / columnWidth);
-  const columnIndex = clamp(rawColumn, 0, 6);
+  const columnIndex = clamp(rawColumn, 0, visibleDates.length - 1);
   const rawTop = clientY - gridRect.top - drag.offsetY;
   const rawMinutes = START_MINUTES + (rawTop / gridRect.height) * TOTAL_MINUTES;
   const snappedStart = clamp(
@@ -1842,19 +2107,34 @@ function getCourseDropTarget(clientX, clientY, drag) {
   );
 
   return {
-    date: weekDates[columnIndex],
+    date: visibleDates[columnIndex],
     start: snappedStart,
   };
 }
 
-function moveCourseOccurrence(courseId, fromDate, toDate, startMinutes, duration) {
+function getResizeEndMinutes(clientY, drag) {
+  const gridRect = daysGrid.getBoundingClientRect();
+  const rawMinutes = START_MINUTES + ((clientY - gridRect.top) / gridRect.height) * TOTAL_MINUTES;
+  return clamp(
+    Math.round(rawMinutes / DRAG_SNAP_MINUTES) * DRAG_SNAP_MINUTES,
+    drag.start + DRAG_SNAP_MINUTES,
+    END_MINUTES,
+  );
+}
+
+function moveCourseOccurrence(courseId, fromDate, toDate, startMinutes, duration, previousCourse = null) {
   const activeSemester = getActiveSemester();
   const course = activeSemester?.courses.find((item) => item.id === courseId);
   if (!course) return;
 
+  const oldCourse = previousCourse || cloneCourse(course);
   const endMinutes = Math.min(END_MINUTES, startMinutes + duration);
-  course.start = minutesToTime(startMinutes);
-  course.end = minutesToTime(endMinutes);
+  const nextStart = minutesToTime(startMinutes);
+  const nextEnd = minutesToTime(endMinutes);
+  if (course.start === nextStart && course.end === nextEnd && fromDate === toDate) return;
+
+  course.start = nextStart;
+  course.end = nextEnd;
   course.updatedAt = new Date().toISOString();
 
   if (fromDate !== toDate) {
@@ -1862,6 +2142,22 @@ function moveCourseOccurrence(courseId, fromDate, toDate, startMinutes, duration
   }
 
   renderAll();
+  showCourseChangeUndo(course, oldCourse, "dragMoved");
+}
+
+function resizeCourseOccurrence(courseId, endMinutes, previousCourse = null) {
+  const activeSemester = getActiveSemester();
+  const course = activeSemester?.courses.find((item) => item.id === courseId);
+  if (!course) return;
+
+  const oldCourse = previousCourse || cloneCourse(course);
+  const currentEnd = timeToMinutes(course.end);
+  if (currentEnd === endMinutes) return;
+
+  course.end = minutesToTime(endMinutes);
+  course.updatedAt = new Date().toISOString();
+  renderAll();
+  showCourseChangeUndo(course, oldCourse, "dragResized");
 }
 
 function moveCourseDate(course, fromDate, toDate) {
@@ -1914,27 +2210,78 @@ function handleCourseMenuAction({ action, courseId }) {
 }
 
 function showUndoToast(course) {
+  showActionUndoToast(t("deletedCourse", { name: getCourseDisplayName(course) }));
+}
+
+function showCourseChangeUndo(course, previousCourse, messageKey) {
+  const activeSemester = getActiveSemester();
+  if (!activeSemester || !previousCourse || JSON.stringify(previousCourse) === JSON.stringify(course)) {
+    return;
+  }
+
+  lastUndoAction = {
+    type: "course-change",
+    semesterId: activeSemester.id,
+    courseId: course.id,
+    course: previousCourse,
+  };
+  showActionUndoToast(t(messageKey, { name: getCourseDisplayName(course) }));
+}
+
+function showActionUndoToast(message) {
   clearTimeout(undoTimer);
-  undoMessage.textContent = t("deletedCourse", { name: getCourseDisplayName(course) });
+  undoMessage.textContent = message;
   undoToast.hidden = false;
   undoTimer = setTimeout(() => {
     undoToast.hidden = true;
     lastDeletedCourse = null;
+    lastUndoAction = null;
   }, 8000);
 }
 
-function undoDelete() {
-  if (!lastDeletedCourse) return;
+function undoLastAction() {
+  if (!lastUndoAction) return;
 
-  const semester = state.semesters.find((item) => item.id === lastDeletedCourse.semesterId);
+  if (lastUndoAction.type === "delete") {
+    undoDeleteAction(lastUndoAction);
+    return;
+  }
+
+  if (lastUndoAction.type === "course-change") {
+    undoCourseChange(lastUndoAction);
+  }
+}
+
+function undoDeleteAction(action) {
+  const semester = state.semesters.find((item) => item.id === action.semesterId);
   if (!semester) return;
 
-  semester.courses.splice(lastDeletedCourse.index, 0, lastDeletedCourse.course);
-  lastDeletedCourse = null;
-  clearTimeout(undoTimer);
-  undoToast.hidden = true;
+  semester.courses.splice(action.index, 0, action.course);
+  clearUndoState();
   dataMessage.textContent = t("deleteUndone");
   renderAll();
+}
+
+function undoCourseChange(action) {
+  const semester = state.semesters.find((item) => item.id === action.semesterId);
+  const index = semester?.courses.findIndex((course) => course.id === action.courseId) ?? -1;
+  if (!semester || index === -1) return;
+
+  semester.courses[index] = action.course;
+  clearUndoState();
+  dataMessage.textContent = t("deleteUndone");
+  renderAll();
+}
+
+function clearUndoState() {
+  lastDeletedCourse = null;
+  lastUndoAction = null;
+  clearTimeout(undoTimer);
+  undoToast.hidden = true;
+}
+
+function cloneCourse(course) {
+  return JSON.parse(JSON.stringify(course));
 }
 
 function escapeHtml(value) {
@@ -2231,6 +2578,86 @@ function getReminderOccurrences(date) {
   return occurrences;
 }
 
+function getScheduleExportBounds() {
+  const target = document.querySelector(".schedule-scroll");
+  const rect = target.getBoundingClientRect();
+
+  return {
+    x: Math.max(0, Math.round(rect.left)),
+    y: Math.max(0, Math.round(rect.top)),
+    width: Math.max(1, Math.round(rect.width)),
+    height: Math.max(1, Math.round(rect.height)),
+  };
+}
+
+async function exportSchedulePdf() {
+  document.body.classList.add("is-exporting-schedule");
+  await nextFrame();
+
+  try {
+    return await window.classPilotExport?.savePdf?.({
+      defaultPath: `classpilot-schedule-${getViewAnchorDate()}.pdf`,
+    });
+  } finally {
+    document.body.classList.remove("is-exporting-schedule");
+  }
+}
+
+function nextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+function getImportPreviewMessage(importedState) {
+  const importedSemesterCount = importedState.semesters.length;
+  const importedCourseCount = importedState.semesters.reduce((sum, semester) => sum + semester.courses.length, 0);
+  const currentSemesterCount = state.semesters.length;
+  const currentCourseCount = state.semesters.reduce((sum, semester) => sum + semester.courses.length, 0);
+
+  return `${t("importPreview")}\n\n${t("importPreviewDetail", {
+    semesterCount: importedSemesterCount,
+    courseCount: importedCourseCount,
+    currentSemesterCount,
+    currentCourseCount,
+  })}`;
+}
+
+async function openAboutModal() {
+  const [appInfo, dataPath, backupsPath] = await Promise.all([
+    window.classPilotDesktop?.getAppInfo?.(),
+    window.classPilotStorage?.getPath?.(),
+    window.classPilotStorage?.getBackupsPath?.(),
+  ]);
+
+  aboutContent.innerHTML = `
+    <dl class="detail-list about-list">
+      ${renderDetailRow(t("appVersion"), appInfo?.version || "")}
+      ${renderDetailRow(t("dataPath"), dataPath || "")}
+      ${renderDetailRow(t("backupsPath"), backupsPath || "")}
+    </dl>
+  `;
+  aboutModal.hidden = false;
+  document.body.classList.add("modal-open");
+  aboutUpdateButton.focus();
+}
+
+function renderDetailRow(label, value) {
+  return `
+    <div>
+      <dt>${escapeHtml(label)}</dt>
+      <dd>${escapeHtml(value || "-")}</dd>
+    </div>
+  `;
+}
+
+function closeAboutModal() {
+  aboutModal.hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+async function checkForUpdatesFromRenderer() {
+  await window.classPilotDesktop?.checkForUpdates?.();
+}
+
 languageSelect.addEventListener("change", () => {
   state.language = languageSelect.value === "en" ? "en" : "zh";
   renderAll();
@@ -2285,7 +2712,7 @@ typeFilter.addEventListener("change", () => {
   renderAll();
 });
 
-undoButton.addEventListener("click", undoDelete);
+undoButton.addEventListener("click", undoLastAction);
 
 exportButton.addEventListener("click", () => {
   const snapshot = {
@@ -2303,16 +2730,15 @@ exportButton.addEventListener("click", () => {
 });
 
 exportPdfButton.addEventListener("click", async () => {
-  const result = await window.classPilotExport?.savePdf?.({
-    defaultPath: `classpilot-schedule-${state.viewWeekStart || todayISO()}.pdf`,
-  });
+  const result = await exportSchedulePdf();
 
   dataMessage.textContent = result?.canceled ? t("exportCanceled") : t("exportPdfDone");
 });
 
 exportImageButton.addEventListener("click", async () => {
   const result = await window.classPilotExport?.saveImage?.({
-    defaultPath: `classpilot-schedule-${state.viewWeekStart || todayISO()}.png`,
+    defaultPath: `classpilot-schedule-${getViewAnchorDate()}.png`,
+    bounds: getScheduleExportBounds(),
   });
 
   dataMessage.textContent = result?.canceled ? t("exportCanceled") : t("exportImageDone");
@@ -2332,6 +2758,10 @@ exportIcsButton.addEventListener("click", async () => {
   dataMessage.textContent = result?.canceled ? t("exportCanceled") : t("exportIcsDone");
 });
 
+checkUpdateButton.addEventListener("click", checkForUpdatesFromRenderer);
+aboutButton.addEventListener("click", openAboutModal);
+aboutUpdateButton.addEventListener("click", checkForUpdatesFromRenderer);
+
 importButton.addEventListener("click", () => {
   importFileInput.click();
 });
@@ -2346,7 +2776,15 @@ importFileInput.addEventListener("change", async () => {
       throw new Error("Invalid ClassPilot backup");
     }
 
-    state = sanitizeState(imported);
+    const nextState = sanitizeState(imported);
+    const confirmed = window.confirm(getImportPreviewMessage(nextState));
+    if (!confirmed) {
+      dataMessage.textContent = t("exportCanceled");
+      importFileInput.value = "";
+      return;
+    }
+
+    state = nextState;
     archivePastSemesters();
     ensureActiveSemester();
     dataMessage.textContent = t("importDone");
@@ -2360,7 +2798,7 @@ importFileInput.addEventListener("change", async () => {
 
 semesterSelect.addEventListener("change", () => {
   state.activeSemesterId = semesterSelect.value;
-  state.viewWeekStart = getInitialWeekForSemester(getActiveSemester());
+  setViewDate(getInitialWeekForSemester(getActiveSemester()));
   semesterErrorEl.textContent = "";
   renderAll();
 });
@@ -2385,7 +2823,7 @@ semesterForm.addEventListener("submit", (event) => {
   activeSemester.name = draft.name;
   activeSemester.startDate = draft.startDate;
   activeSemester.endDate = draft.endDate;
-  state.viewWeekStart = startOfWeekISO(draft.startDate);
+  setViewDate(draft.startDate);
   semesterErrorEl.textContent = "";
   renderAll();
 });
@@ -2414,7 +2852,7 @@ newSemesterButton.addEventListener("click", () => {
 
   state.semesters.push(semester);
   state.activeSemesterId = semester.id;
-  state.viewWeekStart = startOfWeekISO(semester.startDate);
+  setViewDate(semester.startDate);
   semesterErrorEl.textContent = "";
   renderAll();
 });
@@ -2523,6 +2961,12 @@ daysGrid.addEventListener("click", (event) => {
     return;
   }
 
+  const monthCourse = event.target.closest(".month-course");
+  if (monthCourse) {
+    openDetailModal(monthCourse.dataset.courseId);
+    return;
+  }
+
   const courseBlock = event.target.closest(".course-block");
   if (courseBlock) {
     openDetailModal(courseBlock.dataset.courseId);
@@ -2530,7 +2974,7 @@ daysGrid.addEventListener("click", (event) => {
 });
 
 daysGrid.addEventListener("contextmenu", (event) => {
-  const courseBlock = event.target.closest(".course-block");
+  const courseBlock = event.target.closest(".course-block, .month-course");
   if (!courseBlock || !window.classPilotMenu?.showCourseMenu) return;
 
   event.preventDefault();
@@ -2548,7 +2992,7 @@ daysGrid.addEventListener("contextmenu", (event) => {
 daysGrid.addEventListener("keydown", (event) => {
   if (event.target.closest("button")) return;
 
-  const courseBlock = event.target.closest(".course-block");
+  const courseBlock = event.target.closest(".course-block, .month-course");
   if (!courseBlock || !["Enter", " "].includes(event.key)) return;
 
   event.preventDefault();
@@ -2585,7 +3029,18 @@ editModal.addEventListener("click", (event) => {
   }
 });
 
+aboutModal.addEventListener("click", (event) => {
+  if (event.target.matches("[data-close-about]")) {
+    closeAboutModal();
+  }
+});
+
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !aboutModal.hidden) {
+    closeAboutModal();
+    return;
+  }
+
   if (event.key === "Escape" && !detailModal.hidden) {
     closeDetailModal();
     return;
@@ -2596,24 +3051,34 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+viewModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const nextMode = VIEW_MODES.includes(button.dataset.viewMode) ? button.dataset.viewMode : "week";
+    const anchor = state.viewMode === "week" ? state.viewWeekStart : getViewAnchorDate();
+    state.viewMode = nextMode;
+    setViewDate(nextMode === "today" ? todayISO() : anchor);
+    renderAll();
+  });
+});
+
 prevWeekButton.addEventListener("click", () => {
-  state.viewWeekStart = formatISODate(addDays(parseDate(state.viewWeekStart), -7));
+  shiftView(-1);
   renderAll();
 });
 
 todayWeekButton.addEventListener("click", () => {
-  state.viewWeekStart = startOfWeekISO(todayISO());
+  setViewDate(todayISO());
   renderAll();
 });
 
 nextWeekButton.addEventListener("click", () => {
-  state.viewWeekStart = formatISODate(addDays(parseDate(state.viewWeekStart), 7));
+  shiftView(1);
   renderAll();
 });
 
 weekDateInput.addEventListener("change", () => {
   if (isValidDateString(weekDateInput.value)) {
-    state.viewWeekStart = startOfWeekISO(weekDateInput.value);
+    setViewDate(weekDateInput.value);
     renderAll();
   }
 });
