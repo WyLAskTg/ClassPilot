@@ -61,6 +61,10 @@ function normalizeCourseIdentity(course) {
   return { code: "", name: legacy.name || "Untitled" };
 }
 
+function normalizeCourseType(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
 function normalizeCourse(course) {
   const recurrence = ["weekly", "biweekly", "monthly", "dates"].includes(course.recurrence)
     ? course.recurrence
@@ -75,9 +79,7 @@ function normalizeCourse(course) {
     id: course.id || "generated",
     code: identity.code,
     name: identity.name,
-    type: ["lecture", "tutorial", "lab", "seminar", "exam", "other"].includes(course.type)
-      ? course.type
-      : "lecture",
+    type: normalizeCourseType(course.type),
     recurrence,
     days: [...new Set(days)].sort((a, b) => Number(a) - Number(b)),
     anchorDate: isValidDateString(course.anchorDate) ? course.anchorDate : "",
@@ -110,6 +112,7 @@ assert.deepStrictEqual(
   { code: "MATH301", name: "Quiz" },
 );
 assert.strictEqual(normalizeCourse({ name: "", type: "bad", recurrence: "bad" }).name, "Untitled");
+assert.strictEqual(normalizeCourse({ name: "STAT 230", type: " LEC 001 " }).type, "LEC 001");
 assert.strictEqual(normalizeCourse({ link: "javascript:alert(1)" }).link, "");
 assert.strictEqual(normalizeCourse({ link: "mailto:teacher@example.com" }).link, "mailto:teacher@example.com");
 assert.deepStrictEqual(normalizeCourse({ recurrence: "dates", dates: ["2026-05-20", "not-a-date"] }).dates, [

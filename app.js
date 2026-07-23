@@ -7,6 +7,7 @@ const DRAG_SNAP_MINUTES = 15;
 const DENSITIES = ["compact", "standard", "spacious"];
 const THEMES = ["light", "dark", "system"];
 const VIEW_MODES = ["week", "today", "month"];
+const WEEKDAY_VALUES = ["1", "2", "3", "4", "5"];
 const COURSE_TYPES = ["lecture", "tutorial", "lab", "seminar", "exam", "other"];
 const COLOR_PALETTE = [
   "#2563eb",
@@ -84,7 +85,7 @@ const I18N = {
     showRecurrence: "重复规则",
     showActions: "按钮",
     search: "搜索",
-    searchPlaceholder: "课程、地点或类型",
+    searchPlaceholder: "\u8bfe\u7a0b\u4ee3\u7801/\u540d\u79f0\u6216\u7c7b\u578b",
     filterType: "课程类型",
     allTypes: "全部类型",
     undo: "撤销",
@@ -93,11 +94,12 @@ const I18N = {
     active: "进行中",
     archived: "已归档",
     addCourseTitle: "添加课程",
-    courseCode: "课程代码",
-    courseCodePlaceholder: "例如 CS101",
+    courseCode: "\u8bfe\u7a0b\u4ee3\u7801/\u540d\u79f0",
+    courseCodePlaceholder: "\u4f8b\u5982 STAT 230",
     courseName: "课程名称",
     courseNamePlaceholder: "例如 算法导论",
     courseType: "课程类型",
+    courseTypePlaceholder: "\u4f8b\u5982 LEC 001",
     typeLecture: "Lecture",
     typeTutorial: "Tutorial",
     typeLab: "Lab",
@@ -177,7 +179,7 @@ const I18N = {
     dayLong6: "星期六",
     dayLong7: "星期日",
     unsetLocation: "未填写地点",
-    errorCourseName: "课程名称不能为空。",
+    errorCourseName: "\u8bfe\u7a0b\u4ee3\u7801/\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a\u3002",
     errorNoDays: "必须选择至少一个上课日。",
     errorAnchorDate: "请填写首次上课日期。",
     errorExactDates: "请填写至少一个确切日期。",
@@ -251,7 +253,7 @@ const I18N = {
     showRecurrence: "Repeat",
     showActions: "Buttons",
     search: "Search",
-    searchPlaceholder: "Course, location, or type",
+    searchPlaceholder: "Course code/name or type",
     filterType: "Course Type",
     allTypes: "All Types",
     undo: "Undo",
@@ -260,11 +262,12 @@ const I18N = {
     active: "Active",
     archived: "Archived",
     addCourseTitle: "Add Course",
-    courseCode: "Course Code",
-    courseCodePlaceholder: "e.g. CS101",
+    courseCode: "Course Code/Name",
+    courseCodePlaceholder: "e.g. STAT 230",
     courseName: "Course Name",
     courseNamePlaceholder: "e.g. Algorithms",
     courseType: "Course Type",
+    courseTypePlaceholder: "e.g. LEC 001",
     typeLecture: "Lecture",
     typeTutorial: "Tutorial",
     typeLab: "Lab",
@@ -344,7 +347,7 @@ const I18N = {
     dayLong6: "Saturday",
     dayLong7: "Sunday",
     unsetLocation: "No location",
-    errorCourseName: "Course name is required.",
+    errorCourseName: "Course code/name is required.",
     errorNoDays: "Select at least one weekday.",
     errorAnchorDate: "Enter the first class date.",
     errorExactDates: "Enter at least one exact date.",
@@ -563,10 +566,16 @@ function normalizeDisplayOptions(options = {}) {
 }
 
 function normalizeFilters(filters = {}) {
+  const type = String(filters.type || "all").trim();
+
   return {
     query: String(filters.query || ""),
-    type: COURSE_TYPES.includes(filters.type) ? filters.type : "all",
+    type: type || "all",
   };
+}
+
+function normalizeCourseType(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
 }
 
 function normalizeCourseIdentity(course) {
@@ -617,7 +626,7 @@ function migrateLegacyCourses(legacyCourses) {
       id: uid(),
       code: identity.code,
       name: identity.name,
-      type: COURSE_TYPES.includes(course.type) ? course.type : "lecture",
+      type: normalizeCourseType(course.type),
       recurrence: "weekly",
       days: [...new Set(course.days.map(String))].sort((a, b) => Number(a) - Number(b)),
       anchorDate: "",
@@ -648,7 +657,7 @@ function normalizeCourse(course) {
     id: course.id || uid(),
     code: identity.code,
     name: identity.name,
-    type: COURSE_TYPES.includes(course.type) ? course.type : "lecture",
+    type: normalizeCourseType(course.type),
     recurrence,
     days: [...new Set(days)].sort((a, b) => Number(a) - Number(b)),
     anchorDate: isValidDateString(course.anchorDate) ? course.anchorDate : "",
@@ -763,7 +772,7 @@ function startOfWeekISO(value) {
 
 function getWeekDates() {
   const start = parseDate(state.viewWeekStart);
-  return Array.from({ length: 7 }, (_, index) => formatISODate(addDays(start, index)));
+  return Array.from({ length: WEEKDAY_VALUES.length }, (_, index) => formatISODate(addDays(start, index)));
 }
 
 function getViewAnchorDate() {
@@ -882,7 +891,10 @@ function applyTranslations() {
   document.documentElement.dataset.density = state.density || "standard";
   document.documentElement.dataset.theme = getResolvedTheme();
   document.documentElement.dataset.viewMode = state.viewMode || "week";
-  document.documentElement.style.setProperty("--visible-days", state.viewMode === "today" ? "1" : "7");
+  document.documentElement.style.setProperty(
+    "--visible-days",
+    state.viewMode === "today" ? "1" : state.viewMode === "month" ? "7" : String(WEEKDAY_VALUES.length),
+  );
   document.title = t("appTitle");
   languageSelect.value = state.language;
   densitySelect.value = state.density || "standard";
@@ -969,13 +981,35 @@ function renderSettingsControls() {
   showRecurrenceCheckbox.checked = display.recurrence;
   showActionsCheckbox.checked = display.actions;
   searchInput.value = state.filters?.query || "";
-  typeFilter.value = state.filters?.type || "all";
+  renderTypeFilterOptions();
 
   if (state.reminderLeadMinutes > 0) {
     notificationStatus.textContent = getNotificationStatusText();
   } else {
     notificationStatus.textContent = "";
   }
+}
+
+function renderTypeFilterOptions() {
+  const selectedType = normalizeFilters(state.filters).type;
+  const activeSemester = getActiveSemester();
+  const courseTypes = [...new Set(
+    (activeSemester?.courses || [])
+      .map((course) => normalizeCourseType(course.type))
+      .filter(Boolean),
+  )].sort((a, b) => getCourseTypeLabel(a).localeCompare(getCourseTypeLabel(b)));
+
+  typeFilter.innerHTML = [
+    `<option value="all">${t("allTypes")}</option>`,
+    ...courseTypes.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(getCourseTypeLabel(type))}</option>`),
+  ].join("");
+  if (selectedType !== "all" && !courseTypes.includes(selectedType)) {
+    state.filters = normalizeFilters({ ...state.filters, type: "all" });
+    typeFilter.value = "all";
+    return;
+  }
+
+  typeFilter.value = selectedType;
 }
 
 function renderWeekControls() {
@@ -996,7 +1030,7 @@ function renderWeekControls() {
     return;
   }
 
-  weekRange.textContent = `${weekDates[0]} - ${weekDates[6]}`;
+  weekRange.textContent = `${weekDates[0]} - ${weekDates[weekDates.length - 1]}`;
 }
 
 function renderHeader() {
@@ -1151,25 +1185,8 @@ function renderCourses() {
       const layout = layoutById.get(occurrence.id) || { column: 0, columns: 1, isConflict: false };
       const slotWidth = 100 / layout.columns;
       const slotLeft = slotWidth * layout.column;
-      const textColor = getReadableTextColor(course.color);
-      const display = normalizeDisplayOptions(state.displayOptions);
-      const typeBadge = display.type
-        ? `<span class="type-badge">${t(`type${capitalize(course.type || "lecture")}`)}</span>`
-        : "";
-      const conflictBadge = layout.isConflict ? `<span class="conflict-badge">${t("conflictBadge")}</span>` : "";
-      const locationLine = display.location && course.location
-        ? `<p class="course-place">${escapeHtml(course.location)}</p>`
-        : "";
-      const recurrenceLine = display.recurrence
-        ? `<p class="course-repeat">${escapeHtml(getCourseCompactSummary(course))}</p>`
-        : "";
-      const actions = display.actions
-        ? `
-          <div class="course-actions">
-            <button class="edit-button" type="button" data-id="${course.id}">${t("edit")}</button>
-            <button class="delete-button" type="button" data-id="${course.id}" aria-label="${t("delete")} ${escapeHtml(getCourseDisplayName(course))}">${t("delete")}</button>
-          </div>
-        `
+      const typeLine = getCourseTypeLabel(course.type)
+        ? `<p class="course-type-line">${escapeHtml(getCourseTypeLabel(course.type))}</p>`
         : "";
 
       const block = document.createElement("article");
@@ -1185,22 +1202,14 @@ function renderCourses() {
       block.style.height = `calc(${height}% - 8px)`;
       block.style.left = `calc(${slotLeft}% + 6px)`;
       block.style.width = `calc(${slotWidth}% - 10px)`;
-      block.style.background = `linear-gradient(135deg, ${course.color}, ${darkenColor(course.color, 18)})`;
-      block.style.color = textColor;
+      block.style.setProperty("--course-color", course.color);
+      block.style.setProperty("--course-bg", getSoftCourseColor(course.color));
       block.innerHTML = `
-        <div class="course-top">
-          ${renderCourseTitle(course)}
-          <div class="course-badges">
-            ${typeBadge}
-            ${conflictBadge}
-          </div>
-        </div>
+        ${renderCourseTitle(course)}
         <div class="course-details">
-          <p class="course-time">${course.start} - ${course.end}</p>
-          ${locationLine}
-          ${recurrenceLine}
+          <p class="course-time">${escapeHtml(formatCourseCardTimeLocation(course))}</p>
+          ${typeLine}
         </div>
-        ${actions}
         <span class="course-resize-handle" aria-hidden="true"></span>
       `;
 
@@ -1263,14 +1272,12 @@ function renderStatistics() {
   const conflictTotal = getConflictPairs(occurrences).length;
   const totalMinutes = occurrences.reduce((sum, occurrence) => sum + occurrence.end - occurrence.start, 0);
   const dayCounts = new Map();
-  const typeMinutes = new Map(COURSE_TYPES.map((type) => [type, 0]));
+  const typeMinutes = new Map();
 
   occurrences.forEach((occurrence) => {
     dayCounts.set(occurrence.date, (dayCounts.get(occurrence.date) || 0) + 1);
-    typeMinutes.set(
-      occurrence.course.type,
-      (typeMinutes.get(occurrence.course.type) || 0) + occurrence.end - occurrence.start,
-    );
+    const type = normalizeCourseType(occurrence.course.type) || "other";
+    typeMinutes.set(type, (typeMinutes.get(type) || 0) + occurrence.end - occurrence.start);
   });
 
   const busiestDate = [...dayCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
@@ -1283,7 +1290,7 @@ function renderStatistics() {
     .map(
       ([type, minutes]) => `
         <span>
-          <strong>${t(`type${capitalize(type)}`)}</strong>
+          <strong>${escapeHtml(getCourseTypeLabel(type) || t("typeOther"))}</strong>
           ${formatHours(minutes)}
         </span>
       `,
@@ -1359,9 +1366,10 @@ function getOccurrencesForDates(dates) {
 function courseMatchesFilters(course) {
   const filters = normalizeFilters(state.filters);
   const query = filters.query.trim().toLowerCase();
-  const typeLabel = t(`type${capitalize(course.type || "lecture")}`).toLowerCase();
+  const courseType = normalizeCourseType(course.type);
+  const typeLabel = getCourseTypeLabel(courseType).toLowerCase();
 
-  if (filters.type !== "all" && course.type !== filters.type) {
+  if (filters.type !== "all" && courseType !== filters.type) {
     return false;
   }
 
@@ -1571,20 +1579,9 @@ function getCourseSummary(course) {
 }
 
 function renderCourseTitle(course) {
-  const title = getCourseIdentity(course);
-  const hasDuplicateName = title.code && title.name.toLowerCase() === title.code.toLowerCase();
-  const nameLine = title.name && !hasDuplicateName
-    ? `<span class="course-name">${escapeHtml(title.name)}</span>`
-    : "";
-
-  if (!title.code) {
-    return `<h2 class="course-title course-title--plain">${nameLine}</h2>`;
-  }
-
   return `
     <h2 class="course-title">
-      <span class="course-code">${escapeHtml(title.code)}</span>
-      ${nameLine}
+      <span class="course-code">${escapeHtml(getCourseDisplayName(course))}</span>
     </h2>
   `;
 }
@@ -1598,8 +1595,23 @@ function getCourseIdentity(course) {
 
 function getCourseDisplayName(course) {
   const { code, name } = getCourseIdentity(course);
-  if (code && name && code.toLowerCase() !== name.toLowerCase()) return `${code} ${name}`;
-  return name || code || "";
+  return code || name || "";
+}
+
+function getCourseTypeLabel(type) {
+  const normalized = normalizeCourseType(type);
+  if (!normalized) return "";
+
+  if (COURSE_TYPES.includes(normalized)) {
+    return t(`type${capitalize(normalized)}`);
+  }
+
+  return normalized;
+}
+
+function formatCourseCardTimeLocation(course) {
+  const time = `${course.start}\u2013${course.end}`;
+  return course.location ? `${time} \u00b7 ${course.location}` : time;
 }
 
 function getCourseTitleParts(value) {
@@ -1675,11 +1687,12 @@ function formatCompactDays(days) {
 function getCourseDraft(formElement) {
   const formData = new FormData(formElement);
   const parsedDates = parseDateList(formData.get("dates"));
+  const title = String(formData.get("code") || formData.get("name") || "").trim().replace(/\s+/g, " ");
 
   return {
-    code: String(formData.get("code") || "").trim(),
-    name: String(formData.get("name") || "").trim(),
-    type: COURSE_TYPES.includes(String(formData.get("type"))) ? String(formData.get("type")) : "lecture",
+    code: title,
+    name: title,
+    type: normalizeCourseType(formData.get("type")),
     recurrence: String(formData.get("recurrence") || "weekly"),
     days: formData.getAll("days").map(String).filter(Boolean),
     anchorDate: String(formData.get("anchorDate") || ""),
@@ -1823,15 +1836,18 @@ function updateRecurrenceFields(formElement) {
   const showAnchor = ["biweekly", "monthly"].includes(recurrence);
   const showDates = recurrence === "dates";
 
-  formElement.querySelector(".weekday-field").hidden = !showWeekdays;
-  formElement.querySelector(".anchor-field").hidden = !showAnchor;
-  formElement.querySelector(".dates-field").hidden = !showDates;
+  const weekdayField = formElement.querySelector(".weekday-field");
+  const anchorField = formElement.querySelector(".anchor-field");
+  const datesField = formElement.querySelector(".dates-field");
+  if (weekdayField) weekdayField.hidden = !showWeekdays;
+  if (anchorField) anchorField.hidden = !showAnchor;
+  if (datesField) datesField.hidden = !showDates;
 }
 
 function resetCourseForm() {
   form.reset();
   form.elements.recurrence.value = "weekly";
-  form.elements.type.value = "lecture";
+  form.elements.type.value = "";
   form.elements.start.value = "08:00";
   form.elements.end.value = "09:00";
   updateRecurrenceFields(form);
@@ -1852,21 +1868,15 @@ function openDetailModal(courseId) {
 }
 
 function renderCourseDetails(course) {
-  const identity = getCourseIdentity(course);
-  const showName = identity.name && (!identity.code || identity.name.toLowerCase() !== identity.code.toLowerCase());
+  const typeLabel = getCourseTypeLabel(course.type);
   const rows = [
-    identity.code ? [t("courseCode"), identity.code] : null,
-    showName ? [t("courseName"), identity.name] : null,
-    [t("courseType"), t(`type${capitalize(course.type || "lecture")}`)],
+    [t("courseCode"), getCourseDisplayName(course)],
+    typeLabel ? [t("courseType"), typeLabel] : null,
     [t("recurrence"), getCourseSummary(course)],
     [t("startTime"), course.start],
     [t("endTime"), course.end],
     course.location ? [t("location"), course.location] : null,
   ].filter(Boolean);
-
-  const linkHtml = course.link
-    ? `<a href="${escapeHtml(course.link)}" target="_blank" rel="noreferrer">${t("openLink")}</a>`
-    : `<span>${t("noLink")}</span>`;
 
   return `
     <dl class="detail-list">
@@ -1880,10 +1890,6 @@ function renderCourseDetails(course) {
           `,
         )
         .join("")}
-      <div>
-        <dt>${t("courseLink")}</dt>
-        <dd>${linkHtml}</dd>
-      </div>
     </dl>
     <section class="detail-notes">
       <h3>${t("courseNotes")}</h3>
@@ -1909,9 +1915,9 @@ function openEditModal(courseId) {
   editingCourseId = course.id;
   lastFocusedElement = document.activeElement;
   editErrorEl.textContent = "";
-  editForm.elements.code.value = course.code || "";
-  editForm.elements.name.value = course.name;
-  editForm.elements.type.value = course.type || "lecture";
+  editForm.elements.code.value = getCourseDisplayName(course);
+  editForm.elements.name.value = getCourseDisplayName(course);
+  editForm.elements.type.value = getCourseTypeLabel(course.type);
   editForm.elements.recurrence.value = course.recurrence;
   editForm.elements.anchorDate.value = course.anchorDate || "";
   editForm.elements.dates.value = course.dates.join("\n");
@@ -2064,9 +2070,10 @@ function finishCourseDrag(event) {
   drag.block.releasePointerCapture?.(event.pointerId);
   drag.block.classList.remove("is-dragging");
   drag.block.style.transform = "";
-  drag.block.style.height = "";
 
   if (!drag.active) return;
+
+  drag.block.style.height = "";
 
   if (drag.mode === "resize") {
     const nextEnd = getResizeEndMinutes(event.clientY, drag);
@@ -2401,6 +2408,11 @@ function darkenColor(hex, amount) {
   });
 
   return `#${channels.join("")}`;
+}
+
+function getSoftCourseColor(hex) {
+  const [red, green, blue] = hexToRgb(hex);
+  return `rgba(${red}, ${green}, ${blue}, 0.1)`;
 }
 
 function getReadableTextColor(hex) {

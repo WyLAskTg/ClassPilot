@@ -25,7 +25,7 @@ const UPDATE_DIALOG = {
     later: "稍后",
     downloadedTitle: "更新已准备好",
     downloadedMessage: "新版本已下载完成",
-    downloadedDetail: "重启 ClassPilot 后将自动安装更新。",
+    downloadedDetail: "现在重启会立即安装更新；稍后完全退出 ClassPilot 时也会自动安装。",
     restartNow: "重启并安装",
     noNotes: "暂无更新说明。",
     checkingTitle: "\u68c0\u67e5\u66f4\u65b0",
@@ -44,7 +44,7 @@ const UPDATE_DIALOG = {
     later: "Later",
     downloadedTitle: "Update Ready",
     downloadedMessage: "The new version has been downloaded",
-    downloadedDetail: "Restart ClassPilot to install the update.",
+    downloadedDetail: "Restart now to install it immediately, or fully quit ClassPilot later to install it automatically.",
     restartNow: "Restart and Install",
     noNotes: "No release notes available.",
     checkingTitle: "Check for Updates",
@@ -58,6 +58,7 @@ const UPDATE_DIALOG = {
 
 let updateCheckStarted = false;
 let updateDownloadStarted = false;
+let updateReadyToInstall = false;
 
 function getStoragePath() {
   return path.join(app.getPath("userData"), "classpilot-data.json");
@@ -525,6 +526,71 @@ function formatAppVersion(version) {
   return String(version || "").replace(/^(\d+\.\d+)\.0$/, "$1");
 }
 
+function getUpdateDialogWindow(fallbackWindow) {
+  if (fallbackWindow && !fallbackWindow.isDestroyed()) {
+    return fallbackWindow;
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow;
+  }
+
+  return BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || null;
+}
+
+function showUpdateMessageBox(window, options) {
+  const targetWindow = getUpdateDialogWindow(window);
+  return targetWindow ? dialog.showMessageBox(targetWindow, options) : dialog.showMessageBox(options);
+}
+
+function setUpdateProgress(progress) {
+  BrowserWindow.getAllWindows().forEach((window) => {
+    if (!window.isDestroyed()) {
+      window.setProgressBar(progress);
+    }
+  });
+}
+
+function beginUpdateDownload(window) {
+  if (updateDownloadStarted || updateReadyToInstall) {
+    return;
+  }
+
+  updateDownloadStarted = true;
+  setUpdateProgress(2);
+
+  autoUpdater.downloadUpdate().catch((error) => {
+    updateDownloadStarted = false;
+    setUpdateProgress(-1);
+    console.error("Failed to download ClassPilot update:", error);
+    showUpdateMessageBox(window, {
+      type: "warning",
+      title: getUpdateMessages().updateUnavailableTitle,
+      message: String(error?.message || error || getUpdateMessages().updateUnavailableMessage),
+      noLink: true,
+    });
+  });
+}
+
+async function promptToInstallUpdate(window) {
+  const messages = getUpdateMessages();
+  const result = await showUpdateMessageBox(window, {
+    type: "info",
+    title: messages.downloadedTitle,
+    message: messages.downloadedMessage,
+    detail: messages.downloadedDetail,
+    buttons: [messages.restartNow, messages.later],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+
+  if (result.response === 0) {
+    app.isQuitting = true;
+    autoUpdater.quitAndInstall(false, true);
+  }
+}
+
 function checkForUpdatesAfterLaunch(mainWindow) {
   if (!app.isPackaged || updateCheckStarted) {
     return;
@@ -532,7 +598,7 @@ function checkForUpdatesAfterLaunch(mainWindow) {
 
   updateCheckStarted = true;
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.fullChangelog = false;
 
   autoUpdater.on("update-available", async (info) => {
@@ -540,7 +606,7 @@ function checkForUpdatesAfterLaunch(mainWindow) {
     const releaseNotes = cleanReleaseNotes(info.releaseNotes) || messages.noNotes;
     const currentVersion = formatAppVersion(app.getVersion());
     const nextVersion = formatAppVersion(info.version);
-    const result = await dialog.showMessageBox(mainWindow, {
+    const result = await showUpdateMessageBox(mainWindow, {
       type: "info",
       title: messages.title,
       message: messages.message(nextVersion),
@@ -551,35 +617,26 @@ function checkForUpdatesAfterLaunch(mainWindow) {
       noLink: true,
     });
 
-    if (result.response === 0 && !updateDownloadStarted) {
-      updateDownloadStarted = true;
-      autoUpdater.downloadUpdate().catch((error) => {
-        updateDownloadStarted = false;
-        console.error("Failed to download ClassPilot update:", error);
-      });
+    if (result.response === 0) {
+      beginUpdateDownload(mainWindow);
     }
   });
 
-  autoUpdater.on("update-downloaded", async () => {
-    const messages = getUpdateMessages();
-    const result = await dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: messages.downloadedTitle,
-      message: messages.downloadedMessage,
-      detail: messages.downloadedDetail,
-      buttons: [messages.restartNow, messages.later],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true,
-    });
+  autoUpdater.on("download-progress", (progress) => {
+    const percent = Number(progress?.percent || 0);
+    setUpdateProgress(Math.max(0, Math.min(1, percent / 100)));
+  });
 
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall();
-    }
+  autoUpdater.on("update-downloaded", async () => {
+    updateDownloadStarted = false;
+    updateReadyToInstall = true;
+    setUpdateProgress(-1);
+    await promptToInstallUpdate(mainWindow);
   });
 
   autoUpdater.on("error", (error) => {
     updateDownloadStarted = false;
+    setUpdateProgress(-1);
     console.error("ClassPilot update check failed:", error);
   });
 
@@ -601,6 +658,11 @@ async function checkForUpdatesManually(window) {
       noLink: true,
     });
     return { ok: false, reason: "not-packaged" };
+  }
+
+  if (updateReadyToInstall) {
+    await promptToInstallUpdate(window);
+    return { ok: true, updateReady: true };
   }
 
   checkForUpdatesAfterLaunch(window);

@@ -118,7 +118,7 @@
               <p id="notification-status" class="field-help" aria-live="polite"></p>
             </div>
 
-            <div class="field">
+            <div class="field" hidden>
               <span class="field-label" data-i18n="blockDisplay">课程块显示</span>
               <div class="display-options">
                 <label class="toggle-option"><input id="show-location" type="checkbox" /><span data-i18n="showLocation">地点</span></label>
@@ -135,37 +135,16 @@
             </div>
 
             <form id="course-form" novalidate>
-              <div class="identity-fields">
-                <div class="field">
-                  <label for="course-code" data-i18n="courseCode">课程代码</label>
-                  <input id="course-code" name="code" type="text" data-i18n-placeholder="courseCodePlaceholder" placeholder="例如 CS101" autocomplete="off" />
-                </div>
-                <div class="field">
-                  <label for="course-name" data-i18n="courseName">课程名称</label>
-                  <input id="course-name" name="name" type="text" data-i18n-placeholder="courseNamePlaceholder" placeholder="例如 Algorithms" autocomplete="off" />
-                </div>
+              <div class="field">
+                <label for="course-code" data-i18n="courseCode">课程代码/名称</label>
+                <input id="course-code" name="code" type="text" data-i18n-placeholder="courseCodePlaceholder" placeholder="例如 STAT 230" autocomplete="off" />
+                <input name="name" type="hidden" />
               </div>
 
               <div class="field">
                 <label for="course-type" data-i18n="courseType">课程类型</label>
-                <select id="course-type" name="type">
-                  <option value="lecture" data-i18n="typeLecture">Lecture</option>
-                  <option value="tutorial" data-i18n="typeTutorial">Tutorial</option>
-                  <option value="lab" data-i18n="typeLab">Lab</option>
-                  <option value="seminar" data-i18n="typeSeminar">Seminar</option>
-                  <option value="exam" data-i18n="typeExam">Exam</option>
-                  <option value="other" data-i18n="typeOther">Other</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label for="course-recurrence" data-i18n="recurrence">重复方式</label>
-                <select id="course-recurrence" name="recurrence">
-                  <option value="weekly" data-i18n="recurrenceWeekly">每周</option>
-                  <option value="biweekly" data-i18n="recurrenceBiweekly">每两周</option>
-                  <option value="monthly" data-i18n="recurrenceMonthly">每月</option>
-                  <option value="dates" data-i18n="recurrenceDates">指定日期</option>
-                </select>
+                <input id="course-type" name="type" type="text" data-i18n-placeholder="courseTypePlaceholder" placeholder="例如 LEC 001" autocomplete="off" />
+                <input id="course-recurrence" name="recurrence" type="hidden" value="weekly" />
               </div>
 
               <div class="field weekday-field">
@@ -176,8 +155,6 @@
                   <label class="day-option"><input name="days" type="checkbox" value="3" /><span data-i18n="dayShort3">周三</span></label>
                   <label class="day-option"><input name="days" type="checkbox" value="4" /><span data-i18n="dayShort4">周四</span></label>
                   <label class="day-option"><input name="days" type="checkbox" value="5" /><span data-i18n="dayShort5">周五</span></label>
-                  <label class="day-option"><input name="days" type="checkbox" value="6" /><span data-i18n="dayShort6">周六</span></label>
-                  <label class="day-option"><input name="days" type="checkbox" value="7" /><span data-i18n="dayShort7">周日</span></label>
                 </div>
               </div>
 
@@ -203,15 +180,8 @@
                 </div>
               </div>
 
-              <div class="field">
-                <label for="location" data-i18n="location">地点</label>
-                <input id="location" name="location" type="text" data-i18n-placeholder="locationPlaceholder" placeholder="例如 A101" autocomplete="off" />
-              </div>
-
-              <div class="field">
-                <label for="course-link" data-i18n="courseLink">课程链接</label>
-                <input id="course-link" name="link" type="url" data-i18n-placeholder="courseLinkPlaceholder" placeholder="https://..." autocomplete="off" />
-              </div>
+              <input id="location" name="location" type="hidden" />
+              <input id="course-link" name="link" type="hidden" />
 
               <div class="field">
                 <label for="course-notes" data-i18n="courseNotes">备注</label>
@@ -317,37 +287,16 @@
             <button class="icon-button" type="button" data-close-modal aria-label="关闭编辑窗口">×</button>
           </div>
 
-          <div class="identity-fields">
-            <div class="field">
-              <label for="edit-code" data-i18n="courseCode">课程代码</label>
-              <input id="edit-code" name="code" type="text" data-i18n-placeholder="courseCodePlaceholder" autocomplete="off" />
-            </div>
-            <div class="field">
-              <label for="edit-name" data-i18n="courseName">课程名称</label>
-              <input id="edit-name" name="name" type="text" data-i18n-placeholder="courseNamePlaceholder" autocomplete="off" />
-            </div>
+          <div class="field">
+            <label for="edit-code" data-i18n="courseCode">课程代码/名称</label>
+            <input id="edit-code" name="code" type="text" data-i18n-placeholder="courseCodePlaceholder" autocomplete="off" />
+            <input id="edit-name" name="name" type="hidden" />
           </div>
 
           <div class="field">
             <label for="edit-type" data-i18n="courseType">课程类型</label>
-            <select id="edit-type" name="type">
-              <option value="lecture" data-i18n="typeLecture">Lecture</option>
-              <option value="tutorial" data-i18n="typeTutorial">Tutorial</option>
-              <option value="lab" data-i18n="typeLab">Lab</option>
-              <option value="seminar" data-i18n="typeSeminar">Seminar</option>
-              <option value="exam" data-i18n="typeExam">Exam</option>
-              <option value="other" data-i18n="typeOther">Other</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="edit-recurrence" data-i18n="recurrence">重复方式</label>
-            <select id="edit-recurrence" name="recurrence">
-              <option value="weekly" data-i18n="recurrenceWeekly">每周</option>
-              <option value="biweekly" data-i18n="recurrenceBiweekly">每两周</option>
-              <option value="monthly" data-i18n="recurrenceMonthly">每月</option>
-              <option value="dates" data-i18n="recurrenceDates">指定日期</option>
-            </select>
+            <input id="edit-type" name="type" type="text" data-i18n-placeholder="courseTypePlaceholder" autocomplete="off" />
+            <input id="edit-recurrence" name="recurrence" type="hidden" value="weekly" />
           </div>
 
           <div class="field weekday-field">
@@ -358,8 +307,6 @@
               <label class="day-option"><input name="days" type="checkbox" value="3" /><span data-i18n="dayShort3">周三</span></label>
               <label class="day-option"><input name="days" type="checkbox" value="4" /><span data-i18n="dayShort4">周四</span></label>
               <label class="day-option"><input name="days" type="checkbox" value="5" /><span data-i18n="dayShort5">周五</span></label>
-              <label class="day-option"><input name="days" type="checkbox" value="6" /><span data-i18n="dayShort6">周六</span></label>
-              <label class="day-option"><input name="days" type="checkbox" value="7" /><span data-i18n="dayShort7">周日</span></label>
             </div>
           </div>
 
@@ -385,15 +332,8 @@
             </div>
           </div>
 
-          <div class="field">
-            <label for="edit-location" data-i18n="location">地点</label>
-            <input id="edit-location" name="location" type="text" autocomplete="off" />
-          </div>
-
-          <div class="field">
-            <label for="edit-link" data-i18n="courseLink">课程链接</label>
-            <input id="edit-link" name="link" type="url" autocomplete="off" />
-          </div>
+          <input id="edit-location" name="location" type="hidden" />
+          <input id="edit-link" name="link" type="hidden" />
 
           <div class="field">
             <label for="edit-notes" data-i18n="courseNotes">备注</label>
