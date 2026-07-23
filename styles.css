@@ -22,7 +22,7 @@
   --warning-strong: #7c2d12;
   --button-hover: #e4eaf2;
   --schedule-cell-bg: #ffffff;
-  --hour-height: 91px;
+  --hour-height: 112px;
   --course-min-height: 48px;
   --schedule-hours: 14;
   --schedule-height: calc(var(--hour-height) * var(--schedule-hours));
@@ -59,12 +59,12 @@
 }
 
 :root[data-density="compact"] {
-  --hour-height: 62.4px;
+  --hour-height: 76.8px;
   --course-min-height: 40px;
 }
 
 :root[data-density="spacious"] {
-  --hour-height: 117px;
+  --hour-height: 144px;
   --course-min-height: 58px;
 }
 
