@@ -1,4 +1,4 @@
-## ClassPilot v2.0.2
+## ClassPilot v2.0.3
 
-- Fixed the window close behavior so clicking X exits ClassPilot instead of hiding it to the tray.
-- Helps installers and auto updates close the running app cleanly before replacing files.
+- Vertically centered text inside course cards.
+- Reduced timetable hour height to 65% of the original spacing for a more compact view.

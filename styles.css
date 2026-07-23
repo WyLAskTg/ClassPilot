@@ -22,7 +22,7 @@
   --warning-strong: #7c2d12;
   --button-hover: #e4eaf2;
   --schedule-cell-bg: #ffffff;
-  --hour-height: 98px;
+  --hour-height: 91px;
   --course-min-height: 48px;
   --schedule-hours: 14;
   --schedule-height: calc(var(--hour-height) * var(--schedule-hours));
@@ -59,12 +59,12 @@
 }
 
 :root[data-density="compact"] {
-  --hour-height: 67.2px;
+  --hour-height: 62.4px;
   --course-min-height: 40px;
 }
 
 :root[data-density="spacious"] {
-  --hour-height: 126px;
+  --hour-height: 117px;
   --course-min-height: 58px;
 }
 
@@ -939,7 +939,7 @@ input[type="color"] {
 .course-block {
   position: absolute;
   display: grid;
-  align-content: start;
+  align-content: center;
   gap: 2px;
   min-height: var(--course-min-height);
   overflow: hidden;
