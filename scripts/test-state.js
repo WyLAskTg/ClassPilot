@@ -92,7 +92,7 @@ function normalizeCourse(course) {
   };
 }
 
-assert.strictEqual(packageJson.version, "2.0.4", "package version should match this release");
+assert.strictEqual(packageJson.version, "2.0.5", "package version should match this release");
 assert.deepStrictEqual(normalizeCourse({ name: " CS101 ", days: [3, "1", "3"], link: "https://example.com" }).days, [
   "1",
   "3",

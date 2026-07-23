@@ -1,4 +1,4 @@
-## ClassPilot v2.0.4
+## ClassPilot v2.0.5
 
-- Adjusted timetable hour height to 80% of the original spacing.
+- Corrected timetable hour height to 80% of the previous version's spacing.
 - Keeps course card text vertically centered.
