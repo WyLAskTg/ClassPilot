@@ -1,7 +1,6 @@
-## ClassPilot v1.2.1
+## ClassPilot v2.0.0
 
-- Added Week, Today, and Month schedule views.
-- Added drag-to-resize course blocks, with undo for move, resize, and delete.
-- Added import preview, automatic local backups, and an About dialog with data paths.
-- Improved schedule export so PDF/PNG focuses on the timetable area.
-- Added a manual update check entry inside the app.
+- Redesigned course blocks into a cleaner timetable style.
+- Simplified course entry with one course code/name field and freeform type/section text.
+- Removed repeat, weekend, location, and course link fields from the visible editor.
+- Added smoother in-app auto update download and install flow.
