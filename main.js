@@ -728,10 +728,10 @@ function createWindow() {
   window.webContents.once("did-finish-load", () => {
     checkForUpdatesAfterLaunch(window);
   });
-  window.on("close", (event) => {
-    if (app.isQuitting) return;
-    event.preventDefault();
-    window.hide();
+  window.on("closed", () => {
+    if (mainWindow === window) {
+      mainWindow = null;
+    }
   });
 
   return window;

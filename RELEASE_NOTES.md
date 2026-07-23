@@ -1,4 +1,4 @@
-## ClassPilot v2.0.1
+## ClassPilot v2.0.2
 
-- Reduced timetable hour height to 70% for a more compact schedule view.
-- Keeps the redesigned clean course cards and simplified course editor from v2.0.0.
+- Fixed the window close behavior so clicking X exits ClassPilot instead of hiding it to the tray.
+- Helps installers and auto updates close the running app cleanly before replacing files.
